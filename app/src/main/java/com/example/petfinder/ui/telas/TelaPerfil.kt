@@ -60,6 +60,7 @@ import com.example.petfinder.data.model.AdoptionStatus
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
+import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.ProfileUiState
 import com.example.petfinder.ui.viewmodel.ProfileViewModel
@@ -71,6 +72,7 @@ import com.example.petfinder.ui.viewmodel.ProfileViewModel
 fun TelaPerfil(
     viewModel: ProfileViewModel,
     onNavigateToHome: () -> Unit,
+    onNavigateToRegisterPet: () -> Unit = {},
     onLogout: () -> Unit,
     onPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
@@ -100,9 +102,7 @@ fun TelaPerfil(
             when (tab) {
                 BottomNavTab.HOME -> onNavigateToHome()
                 BottomNavTab.PROFILE -> Unit
-                BottomNavTab.REGISTER_PET -> {
-                    pendingFeedback = "Cadastro de animais será conectado na próxima etapa."
-                }
+                BottomNavTab.REGISTER_PET -> onNavigateToRegisterPet()
             }
         },
         modifier = modifier
@@ -341,6 +341,7 @@ fun CardMeuAnimal(
     detalhes: String,
     status: String,
     emoji: String,
+    photoPath: String? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -353,18 +354,15 @@ fun CardMeuAnimal(
         )
     ) {
         Column {
-            Box(
+            PetLocalImage(
+                photoPath = photoPath,
+                contentDescription = "Foto de $nome",
+                fallbackEmoji = emoji,
+                fallbackEmojiSize = 48.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
-                    .background(Color(0xFFE9DDF8)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = emoji,
-                    fontSize = 48.sp
-                )
-            }
+            )
 
             Column(
                 modifier = Modifier.padding(12.dp)
@@ -455,6 +453,7 @@ fun MeusAnimais(
                         detalhes = "$ageOrSize • ${pet.sex.label}",
                         status = pet.status.label,
                         emoji = emoji,
+                        photoPath = pet.photoPath,
                         onClick = { onPetClick(pet.id) }
                     )
                 }

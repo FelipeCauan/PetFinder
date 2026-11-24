@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
+import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.HomeUiState
 import com.example.petfinder.ui.viewmodel.HomeViewModel
@@ -62,6 +63,7 @@ import java.util.Locale
 fun TelaInicial(
     viewModel: HomeViewModel,
     onNavigateToProfile: () -> Unit,
+    onNavigateToRegisterPet: () -> Unit = {},
     onPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -112,9 +114,7 @@ fun TelaInicial(
             when (tab) {
                 BottomNavTab.HOME -> Unit
                 BottomNavTab.PROFILE -> onNavigateToProfile()
-                BottomNavTab.REGISTER_PET -> {
-                    viewModel.showFeedbackMessage("Cadastro de animais será conectado na próxima etapa.")
-                }
+                BottomNavTab.REGISTER_PET -> onNavigateToRegisterPet()
             }
         },
         modifier = modifier
@@ -406,6 +406,7 @@ fun CardAnimal(
     detalhes: String,
     distancia: String,
     emoji: String,
+    photoPath: String? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -418,18 +419,15 @@ fun CardAnimal(
         )
     ) {
         Column {
-            Box(
+            PetLocalImage(
+                photoPath = photoPath,
+                contentDescription = "Foto de $nome",
+                fallbackEmoji = emoji,
+                fallbackEmojiSize = 55.sp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(130.dp)
-                    .background(Color(0xFFE9DDF8)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = emoji,
-                    fontSize = 55.sp
-                )
-            }
+            )
 
             Column(
                 modifier = Modifier.padding(12.dp)
@@ -533,6 +531,7 @@ fun AnimaisProximos(
                         detalhes = "$ageLabel • ${pet.sex.label}",
                         distancia = distanceLabel,
                         emoji = speciesEmoji(pet.species),
+                        photoPath = pet.photoPath,
                         onClick = { onPetClick(pet.id) }
                     )
                 }

@@ -15,7 +15,11 @@ class AuthRepository(
 
     suspend fun getLoggedInUser(): UserEntity? {
         val userId = sessionManager.getUserId() ?: return null
-        return userDao.getUserById(userId)
+        val user = userDao.getUserById(userId)
+        if (user == null) {
+            sessionManager.clearSession()
+        }
+        return user
     }
 
     suspend fun login(email: String, password: String): Result<UserEntity> {

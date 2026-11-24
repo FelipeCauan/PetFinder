@@ -8,10 +8,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.petfinder.ui.telas.LoginScreen
 import com.example.petfinder.ui.telas.RegisterScreen
+import com.example.petfinder.ui.telas.TelaCadastroAnimal
 import com.example.petfinder.ui.telas.TelaInicial
 import com.example.petfinder.ui.telas.TelaPerfil
 import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.HomeViewModel
+import com.example.petfinder.ui.viewmodel.PetFormViewModel
 import com.example.petfinder.ui.viewmodel.ProfileViewModel
 
 object PetFinderRoutes {
@@ -19,6 +21,7 @@ object PetFinderRoutes {
     const val REGISTER = "register"
     const val HOME = "home"
     const val PROFILE = "profile"
+    const val REGISTER_PET = "register_pet"
 }
 
 /**
@@ -30,6 +33,7 @@ fun PetFinderNavGraph(
     authViewModel: AuthViewModel,
     homeViewModel: HomeViewModel,
     profileViewModel: ProfileViewModel,
+    petFormViewModel: PetFormViewModel,
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController()
 ) {
@@ -75,6 +79,12 @@ fun PetFinderNavGraph(
                     navController.navigate(PetFinderRoutes.PROFILE) {
                         launchSingleTop = true
                     }
+                },
+                onNavigateToRegisterPet = {
+                    petFormViewModel.resetForm()
+                    navController.navigate(PetFinderRoutes.REGISTER_PET) {
+                        launchSingleTop = true
+                    }
                 }
             )
         }
@@ -88,9 +98,37 @@ fun PetFinderNavGraph(
                         launchSingleTop = true
                     }
                 },
+                onNavigateToRegisterPet = {
+                    petFormViewModel.resetForm()
+                    navController.navigate(PetFinderRoutes.REGISTER_PET) {
+                        launchSingleTop = true
+                    }
+                },
                 onLogout = {
                     navController.navigate(PetFinderRoutes.LOGIN) {
                         popUpTo(PetFinderRoutes.HOME) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(PetFinderRoutes.REGISTER_PET) {
+            TelaCadastroAnimal(
+                viewModel = petFormViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onPublishSuccess = {
+                    homeViewModel.showFeedbackMessage("Animal publicado para adoção!")
+                    navController.navigate(PetFinderRoutes.HOME) {
+                        popUpTo(PetFinderRoutes.HOME) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onSessionExpired = {
+                    navController.navigate(PetFinderRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
                 }

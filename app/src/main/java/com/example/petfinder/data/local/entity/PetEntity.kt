@@ -32,6 +32,7 @@ data class PetEntity(
     val species: PetSpecies,
     val sex: PetSex,
     val photoPath: String,
+    val additionalPhotoPaths: List<String> = emptyList(),
     val animalRg: String? = null,
     val breed: String? = null,
     val estimatedAge: String? = null,
