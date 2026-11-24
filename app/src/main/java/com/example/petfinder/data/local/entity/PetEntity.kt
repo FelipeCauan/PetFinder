@@ -36,6 +36,7 @@ data class PetEntity(
     val animalRg: String? = null,
     val breed: String? = null,
     val estimatedAge: String? = null,
+    val description: String? = null,
     val address: String,
     val latitude: Double? = null,
     val longitude: Double? = null,

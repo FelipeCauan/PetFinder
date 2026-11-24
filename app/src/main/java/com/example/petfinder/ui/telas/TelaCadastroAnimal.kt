@@ -185,6 +185,7 @@ fun TelaCadastroAnimal(
         onEstimatedAgeChange = viewModel::onEstimatedAgeChange,
         onToggleAgeUnit = viewModel::onToggleAgeUnit,
         onAnimalRgChange = viewModel::onAnimalRgChange,
+        onDescriptionChange = viewModel::onDescriptionChange,
         onAddressChange = viewModel::onAddressChange,
         onUseCurrentLocationClick = {
             if (locationHelper.hasLocationPermission()) {
@@ -229,6 +230,7 @@ fun TelaCadastroAnimalContent(
     onEstimatedAgeChange: (String) -> Unit,
     onToggleAgeUnit: () -> Unit,
     onAnimalRgChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
     onAddressChange: (String) -> Unit,
     onUseCurrentLocationClick: () -> Unit,
     onSubmit: () -> Unit,
@@ -539,6 +541,38 @@ fun TelaCadastroAnimalContent(
                 )
             }
 
+            Column {
+                PetFormFieldLabel(label = "Sobre o animal", isRequired = false)
+                Spacer(modifier = Modifier.height(6.dp))
+                TextField(
+                    value = state.description,
+                    onValueChange = onDescriptionChange,
+                    placeholder = {
+                        Text(
+                            text = "Conte um pouco sobre a personalidade, cuidados ou história (opcional)",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                    },
+                    minLines = 3,
+                    maxLines = 5,
+                    enabled = !state.isLoading,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                        imeAction = ImeAction.Next
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PetFinderTextFieldWithRequiredLabel(
                     label = "Localização",
@@ -696,6 +730,7 @@ private fun TelaCadastroAnimalPreview() {
             onEstimatedAgeChange = {},
             onToggleAgeUnit = {},
             onAnimalRgChange = {},
+            onDescriptionChange = {},
             onAddressChange = {},
             onUseCurrentLocationClick = {},
             onSubmit = {}

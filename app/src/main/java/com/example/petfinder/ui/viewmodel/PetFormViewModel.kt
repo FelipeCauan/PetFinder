@@ -35,6 +35,7 @@ data class PetFormUiState(
     val estimatedAgeValue: String = "",
     val estimatedAgeUnit: AgeUnit = AgeUnit.ANOS,
     val animalRg: String = "",
+    val description: String = "",
     val address: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -131,6 +132,10 @@ class PetFormViewModel(
 
     fun onAnimalRgChange(value: String) {
         _uiState.update { it.copy(animalRg = value) }
+    }
+
+    fun onDescriptionChange(value: String) {
+        _uiState.update { it.copy(description = value) }
     }
 
     fun onAddressChange(value: String) {
@@ -243,6 +248,7 @@ class PetFormViewModel(
                 animalRg = current.animalRg.trim().ifBlank { null },
                 breed = resolvedBreed,
                 estimatedAge = resolvedAge,
+                description = current.description.trim().ifBlank { null },
                 address = current.address.trim(),
                 latitude = current.latitude,
                 longitude = current.longitude,

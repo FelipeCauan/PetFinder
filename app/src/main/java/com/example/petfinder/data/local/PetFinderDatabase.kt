@@ -15,7 +15,7 @@ import com.example.petfinder.data.local.entity.UserEntity
  */
 @Database(
     entities = [UserEntity::class, PetEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)

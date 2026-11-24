@@ -18,6 +18,8 @@ import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.AuthViewModelFactory
 import com.example.petfinder.ui.viewmodel.HomeViewModel
 import com.example.petfinder.ui.viewmodel.HomeViewModelFactory
+import com.example.petfinder.ui.viewmodel.PetDetailViewModel
+import com.example.petfinder.ui.viewmodel.PetDetailViewModelFactory
 import com.example.petfinder.ui.viewmodel.PetFormViewModel
 import com.example.petfinder.ui.viewmodel.PetFormViewModelFactory
 import com.example.petfinder.ui.viewmodel.ProfileViewModel
@@ -43,6 +45,7 @@ class MainActivity : ComponentActivity() {
         val homeFactory = HomeViewModelFactory(userDao, sessionManager, petRepository)
         val profileFactory = ProfileViewModelFactory(userDao, sessionManager, authRepository, petRepository)
         val petFormFactory = PetFormViewModelFactory(authRepository, petRepository)
+        val petDetailFactory = PetDetailViewModelFactory(userDao, sessionManager, petRepository)
 
         val hasValidSession = runBlocking(Dispatchers.IO) {
             authRepository.getLoggedInUser() != null
@@ -59,13 +62,15 @@ class MainActivity : ComponentActivity() {
                 val homeViewModel: HomeViewModel = viewModel(factory = homeFactory)
                 val profileViewModel: ProfileViewModel = viewModel(factory = profileFactory)
                 val petFormViewModel: PetFormViewModel = viewModel(factory = petFormFactory)
+                val petDetailViewModel: PetDetailViewModel = viewModel(factory = petDetailFactory)
 
                 PetFinderNavGraph(
                     startDestination = startDestination,
                     authViewModel = authViewModel,
                     homeViewModel = homeViewModel,
                     profileViewModel = profileViewModel,
-                    petFormViewModel = petFormViewModel
+                    petFormViewModel = petFormViewModel,
+                    petDetailViewModel = petDetailViewModel
                 )
             }
         }
