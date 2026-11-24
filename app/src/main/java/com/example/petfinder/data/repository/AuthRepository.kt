@@ -73,6 +73,63 @@ class AuthRepository(
         return Result.success(savedUser)
     }
 
+    suspend fun updateProfile(
+        userId: Long,
+        fullName: String,
+        email: String,
+        cpf: String,
+        cep: String,
+        street: String,
+        number: String,
+        city: String,
+        uf: String,
+        latitude: Double?,
+        longitude: Double?,
+        photoPath: String?,
+        newPassword: String? = null
+    ): Result<UserEntity> {
+        val currentUser = userDao.getUserById(userId)
+            ?: return Result.failure(IllegalStateException("Usuário não encontrado."))
+
+        val normalizedEmail = email.trim().lowercase()
+        val existingWithEmail = userDao.getUserByEmail(normalizedEmail)
+        if (existingWithEmail != null && existingWithEmail.id != userId) {
+            return Result.failure(IllegalStateException("Já existe uma conta cadastrada com este e-mail."))
+        }
+
+        val updatedPasswordHash = if (!newPassword.isNullOrBlank()) {
+            hashPassword(newPassword)
+        } else {
+            currentUser.passwordHash
+        }
+
+        val updatedUser = currentUser.copy(
+            fullName = fullName.trim(),
+            email = normalizedEmail,
+            passwordHash = updatedPasswordHash,
+            cpf = cpf.filter { it.isDigit() },
+            cep = cep.filter { it.isDigit() },
+            street = street.trim(),
+            number = number.trim(),
+            city = city.trim(),
+            uf = uf.trim().uppercase(),
+            latitude = latitude,
+            longitude = longitude,
+            photoPath = photoPath?.takeIf { it.isNotBlank() }
+        )
+
+        userDao.updateUser(updatedUser)
+        return Result.success(updatedUser)
+    }
+
+    suspend fun deleteAccount(userId: Long): Result<Unit> = runCatching {
+        val deletedRows = userDao.deleteUserById(userId)
+        if (deletedRows <= 0) {
+            throw IllegalStateException("Conta não encontrada.")
+        }
+        sessionManager.clearSession()
+    }
+
     fun logout() {
         sessionManager.clearSession()
     }

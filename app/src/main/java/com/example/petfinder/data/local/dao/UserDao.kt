@@ -20,6 +20,9 @@ interface UserDao {
     @Update
     suspend fun updateUser(user: UserEntity)
 
+    @Query("DELETE FROM users WHERE id = :id")
+    suspend fun deleteUserById(id: Long): Int
+
     @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
     suspend fun getUserByEmail(email: String): UserEntity?
 

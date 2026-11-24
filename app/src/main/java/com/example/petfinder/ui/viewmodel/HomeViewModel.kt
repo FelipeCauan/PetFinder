@@ -27,6 +27,7 @@ data class PetListItem(
 
 data class HomeUiState(
     val userFirstName: String = "",
+    val userPhotoPath: String? = null,
     val userLocationLabel: String = "Localização não informada",
     val searchQuery: String = "",
     val selectedSpecies: PetSpecies? = null,
@@ -72,7 +73,7 @@ class HomeViewModel(
             ?.takeIf { it.isNotBlank() }
             ?: "Visitante"
 
-        val userCityUf = user?.let { "${it.city}, ${it.uf}" }
+        val userCityUf = user?.shortLocationLabel
         val locationLabel = filters.gpsLocationLabel ?: userCityUf ?: "Localização não informada"
 
         val refLat = filters.gpsLat ?: user?.latitude
@@ -106,6 +107,7 @@ class HomeViewModel(
 
         HomeUiState(
             userFirstName = firstName,
+            userPhotoPath = user?.photoPath,
             userLocationLabel = locationLabel,
             searchQuery = filters.searchQuery,
             selectedSpecies = filters.selectedSpecies,
@@ -162,6 +164,10 @@ class HomeViewModel(
 
     fun clearFeedbackMessage() {
         filterState.update { it.copy(feedbackMessage = null) }
+    }
+
+    fun resetState() {
+        filterState.value = HomeFilterState()
     }
 }
 

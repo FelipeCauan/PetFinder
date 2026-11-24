@@ -29,9 +29,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MyLocation
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -82,6 +79,7 @@ import com.example.petfinder.ui.components.PetFinderTextField
 import com.example.petfinder.ui.components.PetFormFieldLabel
 import com.example.petfinder.ui.components.PetPhotoPickerRow
 import com.example.petfinder.ui.components.PetSegmentedSelector
+import com.example.petfinder.ui.components.PhotoSourceDialog
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.PetFormUiState
 import com.example.petfinder.ui.viewmodel.PetFormViewModel
@@ -240,57 +238,11 @@ fun TelaCadastroAnimalContent(
     var breedMenuExpanded by remember { mutableStateOf(false) }
 
     if (showPhotoSourceDialog) {
-        AlertDialog(
-            onDismissRequest = { showPhotoSourceDialog = false },
-            title = { Text("Adicionar foto") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                showPhotoSourceDialog = false
-                                onTakePhoto()
-                            }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PhotoCamera,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Tirar foto com a câmera")
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                showPhotoSourceDialog = false
-                                onPickFromGallery()
-                            }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PhotoLibrary,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Escolher da galeria")
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPhotoSourceDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
+        PhotoSourceDialog(
+            title = "Adicionar foto",
+            onDismiss = { showPhotoSourceDialog = false },
+            onTakePhoto = onTakePhoto,
+            onPickFromGallery = onPickFromGallery
         )
     }
 

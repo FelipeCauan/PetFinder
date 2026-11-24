@@ -23,7 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -48,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -73,19 +73,19 @@ fun TelaPerfil(
     viewModel: ProfileViewModel,
     onNavigateToHome: () -> Unit,
     onNavigateToRegisterPet: () -> Unit = {},
+    onNavigateToEditProfile: () -> Unit = {},
     onLogout: () -> Unit,
     onPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingFeedback by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(pendingFeedback) {
-        val message = pendingFeedback
+    LaunchedEffect(uiState.feedbackMessage) {
+        val message = uiState.feedbackMessage
         if (message != null) {
             snackbarHostState.showSnackbar(message)
-            pendingFeedback = null
+            viewModel.clearFeedbackMessage()
         }
     }
 
@@ -93,7 +93,7 @@ fun TelaPerfil(
         state = uiState,
         snackbarHostState = snackbarHostState,
         onPetClick = onPetClick,
-        onShowMessage = { pendingFeedback = it },
+        onEditProfileClick = onNavigateToEditProfile,
         onLogout = {
             viewModel.logout()
             onLogout()
@@ -117,7 +117,7 @@ fun TelaPerfilContent(
     state: ProfileUiState,
     snackbarHostState: SnackbarHostState,
     onPetClick: (Long) -> Unit,
-    onShowMessage: (String) -> Unit,
+    onEditProfileClick: () -> Unit,
     onLogout: () -> Unit,
     onBottomTabSelected: (BottomNavTab) -> Unit,
     modifier: Modifier = Modifier
@@ -143,6 +143,17 @@ fun TelaPerfilContent(
                 ) {
                     Text("Fechar")
                 }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        infoDialogTitle = null
+                        infoDialogBody = null
+                        onEditProfileClick()
+                    }
+                ) {
+                    Text("Editar")
+                }
             }
         )
     }
@@ -150,7 +161,7 @@ fun TelaPerfilContent(
     val user = state.user
     val displayName = user?.fullName ?: "Usuário"
     val displayEmail = user?.email ?: "—"
-    val displayLocation = user?.let { "${it.city}, ${it.uf}" } ?: "Localização não informada"
+    val displayLocation = user?.shortLocationLabel ?: "Localização não informada"
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -183,20 +194,15 @@ fun TelaPerfilContent(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
+                PetLocalImage(
+                    photoPath = user?.photoPath,
+                    contentDescription = "Foto de perfil",
+                    fallbackEmoji = "👩🏻",
+                    fallbackEmojiSize = 38.sp,
                     modifier = Modifier
                         .size(72.dp)
-                        .background(
-                            Color(0xFFE9DDF8),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "👩🏻",
-                        fontSize = 38.sp
-                    )
-                }
+                        .clip(CircleShape)
+                )
 
                 Spacer(modifier = Modifier.width(14.dp))
 
@@ -229,7 +235,7 @@ fun TelaPerfilContent(
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = { onShowMessage("Edição de perfil estará disponível em breve.") },
+                onClick = onEditProfileClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(44.dp),
@@ -271,9 +277,6 @@ fun TelaPerfilContent(
                 onAddressClick = {
                     infoDialogTitle = "Endereço"
                     infoDialogBody = user?.formattedAddress ?: "Endereço não cadastrado."
-                },
-                onNotificationsClick = {
-                    onShowMessage("Notificações locais ativadas.")
                 },
                 onLogoutClick = onLogout
             )
@@ -503,7 +506,6 @@ fun OpcaoConta(
 fun SecaoConta(
     onPersonalDataClick: () -> Unit,
     onAddressClick: () -> Unit,
-    onNotificationsClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
     Column {
@@ -536,14 +538,6 @@ fun SecaoConta(
                 icone = Icons.Default.LocationOn,
                 titulo = "Endereço",
                 onClick = onAddressClick
-            )
-
-            HorizontalDivider(color = Color(0xFFDDD5E8))
-
-            OpcaoConta(
-                icone = Icons.Default.Notifications,
-                titulo = "Notificações",
-                onClick = onNotificationsClick
             )
         }
 
@@ -594,7 +588,7 @@ fun TelaPerfilPreview() {
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onPetClick = {},
-            onShowMessage = {},
+            onEditProfileClick = {},
             onLogout = {},
             onBottomTabSelected = {}
         )

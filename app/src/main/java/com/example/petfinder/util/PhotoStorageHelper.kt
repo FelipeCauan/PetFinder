@@ -22,6 +22,7 @@ import java.util.UUID
 object PhotoStorageHelper {
 
     private const val PET_PHOTOS_DIR = "pet_photos"
+    private const val USER_PHOTOS_DIR = "user_photos"
     private const val CAMERA_CACHE_DIR = "camera_temp"
 
     fun createTempCameraUri(context: Context): Pair<Uri, File> {
@@ -35,11 +36,16 @@ object PhotoStorageHelper {
         return uri to tempFile
     }
 
-    suspend fun copyUriToInternalStorage(context: Context, sourceUri: Uri): String? =
+    suspend fun copyUriToInternalStorage(
+        context: Context,
+        sourceUri: Uri,
+        dirName: String = PET_PHOTOS_DIR,
+        filePrefix: String = "pet"
+    ): String? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val destDir = File(context.filesDir, PET_PHOTOS_DIR).apply { mkdirs() }
-                val destFile = File(destDir, "pet_${UUID.randomUUID()}.jpg")
+                val destDir = File(context.filesDir, dirName).apply { mkdirs() }
+                val destFile = File(destDir, "${filePrefix}_${UUID.randomUUID()}.jpg")
                 context.contentResolver.openInputStream(sourceUri)?.use { input ->
                     FileOutputStream(destFile).use { output ->
                         input.copyTo(output)
@@ -49,17 +55,54 @@ object PhotoStorageHelper {
             }.getOrNull()
         }
 
-    suspend fun moveFileToInternalStorage(context: Context, tempFile: File): String? =
+    suspend fun moveFileToInternalStorage(
+        context: Context,
+        tempFile: File,
+        dirName: String = PET_PHOTOS_DIR,
+        filePrefix: String = "pet"
+    ): String? =
         withContext(Dispatchers.IO) {
             if (!tempFile.exists() || tempFile.length() == 0L) return@withContext null
             runCatching {
-                val destDir = File(context.filesDir, PET_PHOTOS_DIR).apply { mkdirs() }
-                val destFile = File(destDir, "pet_${UUID.randomUUID()}.jpg")
+                val destDir = File(context.filesDir, dirName).apply { mkdirs() }
+                val destFile = File(destDir, "${filePrefix}_${UUID.randomUUID()}.jpg")
                 tempFile.copyTo(destFile, overwrite = true)
                 tempFile.delete()
                 destFile.absolutePath
             }.getOrNull()
         }
+
+    suspend fun copyUserPhotoToInternalStorage(context: Context, sourceUri: Uri): String? =
+        copyUriToInternalStorage(
+            context = context,
+            sourceUri = sourceUri,
+            dirName = USER_PHOTOS_DIR,
+            filePrefix = "user"
+        )
+
+    suspend fun moveUserPhotoToInternalStorage(context: Context, tempFile: File): String? =
+        moveFileToInternalStorage(
+            context = context,
+            tempFile = tempFile,
+            dirName = USER_PHOTOS_DIR,
+            filePrefix = "user"
+        )
+
+    suspend fun deleteLocalPhotos(context: Context, paths: List<String?>) {
+        withContext(Dispatchers.IO) {
+            val filesDirCanonical = runCatching { context.filesDir.canonicalPath }.getOrNull() ?: return@withContext
+            paths.filterNotNull()
+                .filter { it.isNotBlank() }
+                .forEach { path ->
+                    runCatching {
+                        val file = File(path)
+                        if (file.canonicalPath.startsWith(filesDirCanonical) && file.exists()) {
+                            file.delete()
+                        }
+                    }
+                }
+        }
+    }
 
     suspend fun loadImageBitmap(path: String, maxDimensionPx: Int = 720): ImageBitmap? =
         withContext(Dispatchers.IO) {

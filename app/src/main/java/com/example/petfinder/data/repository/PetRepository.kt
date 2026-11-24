@@ -17,6 +17,9 @@ class PetRepository(
     fun observePetsByOwner(ownerId: Long): Flow<List<PetEntity>> =
         petDao.observePetsByOwner(ownerId)
 
+    suspend fun getPetsByOwner(ownerId: Long): List<PetEntity> =
+        petDao.getPetsByOwner(ownerId)
+
     fun observePetById(petId: Long): Flow<PetEntity?> = petDao.observePetById(petId)
 
     suspend fun getPetById(petId: Long): PetEntity? = petDao.getPetById(petId)

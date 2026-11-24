@@ -158,6 +158,7 @@ fun TelaInicialContent(
         ) {
             Cabecalho(
                 userName = state.userFirstName,
+                userPhotoPath = state.userPhotoPath,
                 locationLabel = state.userLocationLabel,
                 isRefreshingLocation = state.isRefreshingLocation,
                 onLocationClick = onRefreshLocationClick
@@ -197,26 +198,22 @@ fun Cabecalho(
     userName: String,
     locationLabel: String,
     isRefreshingLocation: Boolean,
-    onLocationClick: () -> Unit
+    onLocationClick: () -> Unit,
+    userPhotoPath: String? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        PetLocalImage(
+            photoPath = userPhotoPath,
+            contentDescription = "Foto de perfil de $userName",
+            fallbackEmoji = "👩🏻",
+            fallbackEmojiSize = 25.sp,
             modifier = Modifier
                 .size(48.dp)
-                .background(
-                    Color(0xFFE9DDF8),
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "👩🏻",
-                fontSize = 25.sp
-            )
-        }
+                .clip(CircleShape)
+        )
 
         Spacer(modifier = Modifier.width(12.dp))
 

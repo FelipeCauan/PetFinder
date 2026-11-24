@@ -40,6 +40,7 @@ fun PetFinderTextField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
+    isRequired: Boolean = false,
     trailingHint: String? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
@@ -55,11 +56,9 @@ fun PetFinderTextField(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
+            PetFormFieldLabel(
+                label = label,
+                isRequired = isRequired
             )
             if (trailingHint != null) {
                 Text(
@@ -119,11 +118,12 @@ fun PetFinderPrimaryButton(
     text: String,
     onClick: () -> Unit,
     isLoading: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Button(
         onClick = onClick,
-        enabled = !isLoading,
+        enabled = enabled && !isLoading,
         shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,

@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.petfinder.data.local.dao.PetDao
 import com.example.petfinder.data.local.dao.UserDao
 import com.example.petfinder.data.local.entity.PetEntity
@@ -15,7 +17,7 @@ import com.example.petfinder.data.local.entity.UserEntity
  */
 @Database(
     entities = [UserEntity::class, PetEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -29,6 +31,12 @@ abstract class PetFinderDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: PetFinderDatabase? = null
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE users ADD COLUMN photoPath TEXT")
+            }
+        }
+
         fun getInstance(context: Context): PetFinderDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -36,6 +44,7 @@ abstract class PetFinderDatabase : RoomDatabase() {
                     PetFinderDatabase::class.java,
                     "petfinder_database"
                 )
+                    .addMigrations(MIGRATION_5_6)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

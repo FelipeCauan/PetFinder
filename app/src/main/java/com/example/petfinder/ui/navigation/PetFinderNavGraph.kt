@@ -12,9 +12,11 @@ import com.example.petfinder.ui.telas.LoginScreen
 import com.example.petfinder.ui.telas.RegisterScreen
 import com.example.petfinder.ui.telas.TelaCadastroAnimal
 import com.example.petfinder.ui.telas.TelaDetalheAnimal
+import com.example.petfinder.ui.telas.TelaEditarPerfil
 import com.example.petfinder.ui.telas.TelaInicial
 import com.example.petfinder.ui.telas.TelaPerfil
 import com.example.petfinder.ui.viewmodel.AuthViewModel
+import com.example.petfinder.ui.viewmodel.EditProfileViewModel
 import com.example.petfinder.ui.viewmodel.HomeViewModel
 import com.example.petfinder.ui.viewmodel.PetDetailViewModel
 import com.example.petfinder.ui.viewmodel.PetFormViewModel
@@ -25,6 +27,7 @@ object PetFinderRoutes {
     const val REGISTER = "register"
     const val HOME = "home"
     const val PROFILE = "profile"
+    const val EDIT_PROFILE = "edit_profile"
     const val REGISTER_PET = "register_pet"
     const val PET_DETAIL = "pet_detail/{petId}"
 
@@ -40,6 +43,7 @@ fun PetFinderNavGraph(
     authViewModel: AuthViewModel,
     homeViewModel: HomeViewModel,
     profileViewModel: ProfileViewModel,
+    editProfileViewModel: EditProfileViewModel,
     petFormViewModel: PetFormViewModel,
     petDetailViewModel: PetDetailViewModel,
     modifier: Modifier = Modifier,
@@ -115,12 +119,46 @@ fun PetFinderNavGraph(
                         launchSingleTop = true
                     }
                 },
+                onNavigateToEditProfile = {
+                    navController.navigate(PetFinderRoutes.EDIT_PROFILE) {
+                        launchSingleTop = true
+                    }
+                },
                 onPetClick = { petId ->
                     navController.navigate(PetFinderRoutes.petDetailRoute(petId))
                 },
                 onLogout = {
+                    homeViewModel.resetState()
                     navController.navigate(PetFinderRoutes.LOGIN) {
-                        popUpTo(PetFinderRoutes.HOME) { inclusive = true }
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(PetFinderRoutes.EDIT_PROFILE) {
+            TelaEditarPerfil(
+                viewModel = editProfileViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onSaveSuccess = {
+                    profileViewModel.showFeedbackMessage("Perfil atualizado com sucesso!")
+                    navController.popBackStack()
+                },
+                onAccountDeleted = {
+                    homeViewModel.resetState()
+                    authViewModel.showFeedbackMessage("Conta excluída com sucesso.")
+                    navController.navigate(PetFinderRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
+                onSessionExpired = {
+                    homeViewModel.resetState()
+                    navController.navigate(PetFinderRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
                 }

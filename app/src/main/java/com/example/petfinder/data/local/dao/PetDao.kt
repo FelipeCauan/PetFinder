@@ -34,6 +34,9 @@ interface PetDao {
     @Query("SELECT * FROM pets WHERE ownerId = :ownerId ORDER BY createdAt DESC")
     fun observePetsByOwner(ownerId: Long): Flow<List<PetEntity>>
 
+    @Query("SELECT * FROM pets WHERE ownerId = :ownerId")
+    suspend fun getPetsByOwner(ownerId: Long): List<PetEntity>
+
     @Query("SELECT * FROM pets WHERE id = :petId LIMIT 1")
     fun observePetById(petId: Long): Flow<PetEntity?>
 

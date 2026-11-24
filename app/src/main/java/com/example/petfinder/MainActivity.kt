@@ -16,6 +16,8 @@ import com.example.petfinder.ui.navigation.PetFinderRoutes
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.AuthViewModelFactory
+import com.example.petfinder.ui.viewmodel.EditProfileViewModel
+import com.example.petfinder.ui.viewmodel.EditProfileViewModelFactory
 import com.example.petfinder.ui.viewmodel.HomeViewModel
 import com.example.petfinder.ui.viewmodel.HomeViewModelFactory
 import com.example.petfinder.ui.viewmodel.PetDetailViewModel
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
         val authFactory = AuthViewModelFactory(authRepository)
         val homeFactory = HomeViewModelFactory(userDao, sessionManager, petRepository)
         val profileFactory = ProfileViewModelFactory(userDao, sessionManager, authRepository, petRepository)
+        val editProfileFactory = EditProfileViewModelFactory(authRepository, petRepository)
         val petFormFactory = PetFormViewModelFactory(authRepository, petRepository)
         val petDetailFactory = PetDetailViewModelFactory(userDao, sessionManager, petRepository)
 
@@ -61,6 +64,7 @@ class MainActivity : ComponentActivity() {
                 val authViewModel: AuthViewModel = viewModel(factory = authFactory)
                 val homeViewModel: HomeViewModel = viewModel(factory = homeFactory)
                 val profileViewModel: ProfileViewModel = viewModel(factory = profileFactory)
+                val editProfileViewModel: EditProfileViewModel = viewModel(factory = editProfileFactory)
                 val petFormViewModel: PetFormViewModel = viewModel(factory = petFormFactory)
                 val petDetailViewModel: PetDetailViewModel = viewModel(factory = petDetailFactory)
 
@@ -69,6 +73,7 @@ class MainActivity : ComponentActivity() {
                     authViewModel = authViewModel,
                     homeViewModel = homeViewModel,
                     profileViewModel = profileViewModel,
+                    editProfileViewModel = editProfileViewModel,
                     petFormViewModel = petFormViewModel,
                     petDetailViewModel = petDetailViewModel
                 )

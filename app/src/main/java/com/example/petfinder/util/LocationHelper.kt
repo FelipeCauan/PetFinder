@@ -154,6 +154,34 @@ class LocationHelper(context: Context) {
             }
         }
 
+    suspend fun forwardGeocode(addressText: String): Pair<Double, Double>? =
+        withContext(Dispatchers.IO) {
+            val trimmed = addressText.trim()
+            if (trimmed.isBlank() || !Geocoder.isPresent()) return@withContext null
+            val geocoder = Geocoder(appContext, Locale("pt", "BR"))
+
+            val address: Address? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                withTimeoutOrNull(2500L) {
+                    suspendCancellableCoroutine { continuation ->
+                        runCatching {
+                            geocoder.getFromLocationName(trimmed, 1) { addresses ->
+                                if (continuation.isActive) {
+                                    continuation.resume(addresses.firstOrNull())
+                                }
+                            }
+                        }.onFailure {
+                            if (continuation.isActive) continuation.resume(null)
+                        }
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                runCatching { geocoder.getFromLocationName(trimmed, 1)?.firstOrNull() }.getOrNull()
+            }
+
+            address?.let { it.latitude to it.longitude }
+        }
+
     private fun normalizeUf(adminArea: String?): String? {
         if (adminArea.isNullOrBlank()) return null
         val trimmed = adminArea.trim()

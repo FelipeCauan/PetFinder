@@ -130,7 +130,7 @@ fun TelaDetalheAnimalContent(
                     )
                     Text("E-mail: ${owner?.email ?: "Não informado"}")
                     Text(
-                        text = "Cidade: ${owner?.let { "${it.city} - ${it.uf}" } ?: pet.address}"
+                        text = "Cidade: ${owner?.shortLocationLabel ?: pet.address}"
                     )
                 }
             },
@@ -449,20 +449,32 @@ fun TelaDetalheAnimalContent(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .background(
-                                Color(0xFFE9DDF8),
-                                CircleShape
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = ownerInitials,
-                            color = Color(0xFF43266F),
-                            fontWeight = FontWeight.Bold
+                    if (!owner?.photoPath.isNullOrBlank()) {
+                        PetLocalImage(
+                            photoPath = owner?.photoPath,
+                            contentDescription = "Foto de $ownerName",
+                            fallbackEmoji = "👤",
+                            fallbackEmojiSize = 22.sp,
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .background(
+                                    Color(0xFFE9DDF8),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = ownerInitials,
+                                color = Color(0xFF43266F),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.width(12.dp))
