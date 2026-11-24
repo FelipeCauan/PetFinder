@@ -1,5 +1,7 @@
+
 package com.example.petfinder
 
+import com.example.petfinder.ui.telas.TelaInicial
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,6 +29,10 @@ class MainActivity : ComponentActivity() {
             PetFinderTheme {
                 val authViewModel: AuthViewModel = viewModel(factory = authFactory)
                 PetFinderNavGraph(authViewModel = authViewModel)
+
+        setContent {
+            PetFinderTheme {
+                TelaInicial()
             }
         }
     }
