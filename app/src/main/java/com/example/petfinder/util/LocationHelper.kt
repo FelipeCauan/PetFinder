@@ -162,6 +162,26 @@ class LocationHelper(context: Context) {
     }
 
     companion object {
+        private const val EARTH_RADIUS_KM = 6371.0
+
+        /**
+         * Calcula a distância em quilômetros entre duas coordenadas usando a fórmula de Haversine.
+         */
+        fun calculateDistanceKm(
+            lat1: Double,
+            lon1: Double,
+            lat2: Double,
+            lon2: Double
+        ): Double {
+            val dLat = Math.toRadians(lat2 - lat1)
+            val dLon = Math.toRadians(lon2 - lon1)
+            val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
+                kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+                kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
+            val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+            return EARTH_RADIUS_KM * c
+        }
+
         private val BRAZIL_STATE_TO_UF = mapOf(
             "acre" to "AC",
             "alagoas" to "AL",
