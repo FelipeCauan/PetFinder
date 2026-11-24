@@ -1,4 +1,4 @@
-package com.example.petfinder.ui.screens
+package com.example.petfinder.ui.telas
 
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult

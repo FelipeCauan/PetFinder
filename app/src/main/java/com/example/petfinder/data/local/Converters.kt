@@ -7,7 +7,7 @@ import com.example.petfinder.data.model.PetSize
 import com.example.petfinder.data.model.PetSpecies
 
 /**
- * Conversores de tipos para persistir enums do domínio no Room Database.
+ * Conversores de tipos para persistir enums e listas no Room Database.
  */
 class Converters {
 
@@ -39,6 +39,22 @@ class Converters {
     fun toAdoptionStatus(value: String): AdoptionStatus =
         enumValueOrDefault(value, AdoptionStatus.DISPONIVEL)
 
+    @TypeConverter
+    fun fromStringList(paths: List<String>): String =
+        paths.filter { it.isNotBlank() }.joinToString(separator = LIST_SEPARATOR)
+
+    @TypeConverter
+    fun toStringList(serialized: String): List<String> =
+        if (serialized.isBlank()) {
+            emptyList()
+        } else {
+            serialized.split(LIST_SEPARATOR).filter { it.isNotBlank() }
+        }
+
     private inline fun <reified T : Enum<T>> enumValueOrDefault(name: String, default: T): T =
         runCatching { enumValueOf<T>(name) }.getOrDefault(default)
+
+    companion object {
+        private const val LIST_SEPARATOR = "\n"
+    }
 }
