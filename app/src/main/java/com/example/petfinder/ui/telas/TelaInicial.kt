@@ -27,13 +27,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.filled.Add
 
 
 @Composable
@@ -411,6 +411,7 @@ fun AnimaisProximos() {
     }
 }
 
+
 @Composable
 fun NavegacaoInferior() {
 
@@ -421,14 +422,14 @@ fun NavegacaoInferior() {
     val itens = listOf(
         "Início",
         "Favoritos",
-        "Mensagens",
+        "Cadastrar",
         "Perfil"
     )
 
     val icones = listOf(
         Icons.Default.Home,
         Icons.Default.Favorite,
-        Icons.Default.Chat,
+        Icons.Default.Add,
         Icons.Default.Person
     )
 
@@ -440,18 +441,22 @@ fun NavegacaoInferior() {
 
             NavigationBarItem(
                 selected = selecionada == item,
+
                 onClick = {
                     selecionada = item
                 },
+
                 icon = {
                     Icon(
                         imageVector = icones[index],
                         contentDescription = item
                     )
                 },
+
                 label = {
                     Text(item)
                 },
+
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = Color(0xFF7044B5),
                     selectedTextColor = Color(0xFF7044B5),
@@ -463,6 +468,7 @@ fun NavegacaoInferior() {
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
