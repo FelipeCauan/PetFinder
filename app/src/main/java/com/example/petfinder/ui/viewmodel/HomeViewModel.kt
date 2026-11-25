@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.example.petfinder.data.local.SessionManager
 import com.example.petfinder.data.local.dao.UserDao
 import com.example.petfinder.data.local.entity.PetEntity
+import com.example.petfinder.data.model.AdoptionStatus
+import com.example.petfinder.data.model.PetSex
+import com.example.petfinder.data.model.PetSize
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.data.repository.PetRepository
 import com.example.petfinder.util.LocationHelper
@@ -31,6 +34,12 @@ data class HomeUiState(
     val userLocationLabel: String = "Localização não informada",
     val searchQuery: String = "",
     val selectedSpecies: PetSpecies? = null,
+    val selectedSex: PetSex? = null,
+    val selectedSize: PetSize? = null,
+    val selectedStatus: AdoptionStatus? = null,
+    val maxDistanceKm: Double? = null,
+    val hasLocationReference: Boolean = false,
+    val activeFiltersCount: Int = 0,
     val pets: List<PetListItem> = emptyList(),
     val isRefreshingLocation: Boolean = false,
     val feedbackMessage: String? = null
@@ -39,6 +48,10 @@ data class HomeUiState(
 private data class HomeFilterState(
     val searchQuery: String = "",
     val selectedSpecies: PetSpecies? = null,
+    val selectedSex: PetSex? = null,
+    val selectedSize: PetSize? = null,
+    val selectedStatus: AdoptionStatus? = null,
+    val maxDistanceKm: Double? = null,
     val gpsLat: Double? = null,
     val gpsLon: Double? = null,
     val gpsLocationLabel: String? = null,
@@ -79,31 +92,24 @@ class HomeViewModel(
         val refLat = filters.gpsLat ?: user?.latitude
         val refLon = filters.gpsLon ?: user?.longitude
 
-        val filteredPets = allPets
-            .filter { pet ->
-                val matchesSpecies = filters.selectedSpecies == null || pet.species == filters.selectedSpecies
-                val query = filters.searchQuery.trim()
-                val matchesQuery = query.isEmpty() ||
-                    pet.name.contains(query, ignoreCase = true) ||
-                    (pet.breed?.contains(query, ignoreCase = true) == true) ||
-                    pet.species.label.contains(query, ignoreCase = true)
-                matchesSpecies && matchesQuery
-            }
-            .map { pet ->
-                val dist = if (refLat != null && refLon != null && pet.latitude != null && pet.longitude != null) {
-                    LocationHelper.calculateDistanceKm(refLat, refLon, pet.latitude, pet.longitude)
-                } else {
-                    null
-                }
-                PetListItem(pet = pet, distanceKm = dist)
-            }
-            .let { list ->
-                if (refLat != null && refLon != null) {
-                    list.sortedBy { it.distanceKm ?: Double.MAX_VALUE }
-                } else {
-                    list
-                }
-            }
+        val filteredPets = filterAndSortPets(
+            allPets = allPets,
+            searchQuery = filters.searchQuery,
+            selectedSpecies = filters.selectedSpecies,
+            selectedSex = filters.selectedSex,
+            selectedSize = filters.selectedSize,
+            selectedStatus = filters.selectedStatus,
+            maxDistanceKm = filters.maxDistanceKm,
+            refLat = refLat,
+            refLon = refLon
+        )
+
+        val activeCount = listOf(
+            filters.selectedSex,
+            filters.selectedSize,
+            filters.selectedStatus,
+            filters.maxDistanceKm
+        ).count { it != null }
 
         HomeUiState(
             userFirstName = firstName,
@@ -111,6 +117,12 @@ class HomeViewModel(
             userLocationLabel = locationLabel,
             searchQuery = filters.searchQuery,
             selectedSpecies = filters.selectedSpecies,
+            selectedSex = filters.selectedSex,
+            selectedSize = filters.selectedSize,
+            selectedStatus = filters.selectedStatus,
+            maxDistanceKm = filters.maxDistanceKm,
+            hasLocationReference = refLat != null && refLon != null,
+            activeFiltersCount = activeCount,
             pets = filteredPets,
             isRefreshingLocation = filters.isRefreshingLocation,
             feedbackMessage = filters.feedbackMessage
@@ -127,6 +139,33 @@ class HomeViewModel(
 
     fun onSpeciesSelected(species: PetSpecies?) {
         filterState.update { it.copy(selectedSpecies = species) }
+    }
+
+    fun applyAdvancedFilters(
+        sex: PetSex?,
+        size: PetSize?,
+        status: AdoptionStatus?,
+        maxDistanceKm: Double?
+    ) {
+        filterState.update {
+            it.copy(
+                selectedSex = sex,
+                selectedSize = size,
+                selectedStatus = status,
+                maxDistanceKm = maxDistanceKm
+            )
+        }
+    }
+
+    fun clearAdvancedFilters() {
+        filterState.update {
+            it.copy(
+                selectedSex = null,
+                selectedSize = null,
+                selectedStatus = null,
+                maxDistanceKm = null
+            )
+        }
     }
 
     fun refreshLocation(locationHelper: LocationHelper) {
@@ -168,6 +207,62 @@ class HomeViewModel(
 
     fun resetState() {
         filterState.value = HomeFilterState()
+    }
+
+    companion object {
+        internal fun filterAndSortPets(
+            allPets: List<PetEntity>,
+            searchQuery: String,
+            selectedSpecies: PetSpecies?,
+            selectedSex: PetSex?,
+            selectedSize: PetSize?,
+            selectedStatus: AdoptionStatus?,
+            maxDistanceKm: Double?,
+            refLat: Double?,
+            refLon: Double?
+        ): List<PetListItem> {
+            val query = searchQuery.trim()
+            val hasRefLocation = refLat != null && refLon != null
+
+            return allPets
+                .asSequence()
+                .filter { pet ->
+                    val isNotAdopted = pet.status != AdoptionStatus.ADOTADO
+                    val matchesSpecies = selectedSpecies == null || pet.species == selectedSpecies
+                    val matchesSex = selectedSex == null || pet.sex == selectedSex
+                    val matchesSize = selectedSize == null || pet.size == selectedSize
+                    val matchesStatus = selectedStatus == null || pet.status == selectedStatus
+                    val matchesQuery = query.isEmpty() ||
+                        pet.name.contains(query, ignoreCase = true) ||
+                        (pet.breed?.contains(query, ignoreCase = true) == true) ||
+                        pet.species.label.contains(query, ignoreCase = true)
+
+                    isNotAdopted && matchesSpecies && matchesSex && matchesSize && matchesStatus && matchesQuery
+                }
+                .map { pet ->
+                    val dist = if (hasRefLocation && pet.latitude != null && pet.longitude != null) {
+                        LocationHelper.calculateDistanceKm(refLat!!, refLon!!, pet.latitude, pet.longitude)
+                    } else {
+                        null
+                    }
+                    PetListItem(pet = pet, distanceKm = dist)
+                }
+                .filter { item ->
+                    if (maxDistanceKm == null || !hasRefLocation) {
+                        true
+                    } else {
+                        item.distanceKm != null && item.distanceKm <= maxDistanceKm
+                    }
+                }
+                .toList()
+                .let { list ->
+                    if (hasRefLocation) {
+                        list.sortedBy { it.distanceKm ?: Double.MAX_VALUE }
+                    } else {
+                        list
+                    }
+                }
+        }
     }
 }
 

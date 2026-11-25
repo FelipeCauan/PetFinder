@@ -35,7 +35,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +52,7 @@ import com.example.petfinder.data.model.AdoptionStatus
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
+import com.example.petfinder.ui.components.PetFilterBottomSheet
 import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.HomeUiState
@@ -98,6 +102,8 @@ fun TelaInicial(
         snackbarHostState = snackbarHostState,
         onSearchQueryChange = viewModel::onSearchQueryChange,
         onSpeciesSelected = viewModel::onSpeciesSelected,
+        onApplyAdvancedFilters = viewModel::applyAdvancedFilters,
+        onClearAdvancedFilters = viewModel::clearAdvancedFilters,
         onRefreshLocationClick = {
             if (locationHelper.hasLocationPermission()) {
                 viewModel.refreshLocation(locationHelper)
@@ -131,12 +137,35 @@ fun TelaInicialContent(
     snackbarHostState: SnackbarHostState,
     onSearchQueryChange: (String) -> Unit,
     onSpeciesSelected: (PetSpecies?) -> Unit,
+    onApplyAdvancedFilters: (
+        com.example.petfinder.data.model.PetSex?,
+        com.example.petfinder.data.model.PetSize?,
+        AdoptionStatus?,
+        Double?
+    ) -> Unit,
+    onClearAdvancedFilters: () -> Unit,
     onRefreshLocationClick: () -> Unit,
     onPetClick: (Long) -> Unit,
     onBottomTabSelected: (BottomNavTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val fundo = Color(0xFFFAF8FC)
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+
+    if (showFilterSheet) {
+        PetFilterBottomSheet(
+            initialSex = state.selectedSex,
+            initialSize = state.selectedSize,
+            initialStatus = state.selectedStatus,
+            initialMaxDistanceKm = state.maxDistanceKm,
+            hasLocationReference = state.hasLocationReference,
+            isRefreshingLocation = state.isRefreshingLocation,
+            onRequestLocation = onRefreshLocationClick,
+            onApplyFilters = onApplyAdvancedFilters,
+            onClearFilters = onClearAdvancedFilters,
+            onDismiss = { showFilterSheet = false }
+        )
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -176,7 +205,9 @@ fun TelaInicialContent(
             Spacer(modifier = Modifier.height(20.dp))
             BarraPesquisa(
                 searchQuery = state.searchQuery,
-                onSearchQueryChange = onSearchQueryChange
+                onSearchQueryChange = onSearchQueryChange,
+                activeFiltersCount = state.activeFiltersCount,
+                onFilterClick = { showFilterSheet = true }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -268,7 +299,9 @@ fun Cabecalho(
 @Composable
 fun BarraPesquisa(
     searchQuery: String,
-    onSearchQueryChange: (String) -> Unit
+    onSearchQueryChange: (String) -> Unit,
+    activeFiltersCount: Int = 0,
+    onFilterClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -315,10 +348,12 @@ fun BarraPesquisa(
         Box(
             modifier = Modifier
                 .size(50.dp)
+                .clip(RoundedCornerShape(12.dp))
                 .background(
                     Color(0xFF7044B5),
                     RoundedCornerShape(12.dp)
-                ),
+                )
+                .clickable(onClick = onFilterClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -326,6 +361,24 @@ fun BarraPesquisa(
                 color = Color.White,
                 fontSize = 25.sp
             )
+            if (activeFiltersCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = activeFiltersCount.toString(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF7044B5)
+                    )
+                }
+            }
         }
     }
 }
@@ -566,6 +619,8 @@ fun TelaInicialPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onSearchQueryChange = {},
             onSpeciesSelected = {},
+            onApplyAdvancedFilters = { _, _, _, _ -> },
+            onClearAdvancedFilters = {},
             onRefreshLocationClick = {},
             onPetClick = {},
             onBottomTabSelected = {}
