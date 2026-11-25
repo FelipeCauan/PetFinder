@@ -15,24 +15,16 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-/**
- * Helper offline-first para salvar fotos da galeria/câmera no armazenamento interno do app
- * e carregá-las de forma segura em Compose.
- */
 object PhotoStorageHelper {
 
-    private const val PET_PHOTOS_DIR = "pet_photos"
-    private const val USER_PHOTOS_DIR = "user_photos"
+    const val PET_PHOTOS_DIR = "pet_photos"
+    const val USER_PHOTOS_DIR = "user_photos"
     private const val CAMERA_CACHE_DIR = "camera_temp"
 
     fun createTempCameraUri(context: Context): Pair<Uri, File> {
         val tempDir = File(context.cacheDir, CAMERA_CACHE_DIR).apply { mkdirs() }
         val tempFile = File(tempDir, "cam_${UUID.randomUUID()}.jpg")
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            tempFile
-        )
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
         return uri to tempFile
     }
 
@@ -41,64 +33,40 @@ object PhotoStorageHelper {
         sourceUri: Uri,
         dirName: String = PET_PHOTOS_DIR,
         filePrefix: String = "pet"
-    ): String? =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val destDir = File(context.filesDir, dirName).apply { mkdirs() }
-                val destFile = File(destDir, "${filePrefix}_${UUID.randomUUID()}.jpg")
-                context.contentResolver.openInputStream(sourceUri)?.use { input ->
-                    FileOutputStream(destFile).use { output ->
-                        input.copyTo(output)
-                    }
-                } ?: return@withContext null
-                destFile.absolutePath
-            }.getOrNull()
-        }
+    ): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val destFile = newInternalPhotoFile(context, dirName, filePrefix)
+            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                FileOutputStream(destFile).use { output -> input.copyTo(output) }
+            } ?: return@withContext null
+            destFile.absolutePath
+        }.getOrNull()
+    }
 
     suspend fun moveFileToInternalStorage(
         context: Context,
         tempFile: File,
         dirName: String = PET_PHOTOS_DIR,
         filePrefix: String = "pet"
-    ): String? =
-        withContext(Dispatchers.IO) {
-            if (!tempFile.exists() || tempFile.length() == 0L) return@withContext null
-            runCatching {
-                val destDir = File(context.filesDir, dirName).apply { mkdirs() }
-                val destFile = File(destDir, "${filePrefix}_${UUID.randomUUID()}.jpg")
-                tempFile.copyTo(destFile, overwrite = true)
-                tempFile.delete()
-                destFile.absolutePath
-            }.getOrNull()
-        }
-
-    suspend fun copyUserPhotoToInternalStorage(context: Context, sourceUri: Uri): String? =
-        copyUriToInternalStorage(
-            context = context,
-            sourceUri = sourceUri,
-            dirName = USER_PHOTOS_DIR,
-            filePrefix = "user"
-        )
-
-    suspend fun moveUserPhotoToInternalStorage(context: Context, tempFile: File): String? =
-        moveFileToInternalStorage(
-            context = context,
-            tempFile = tempFile,
-            dirName = USER_PHOTOS_DIR,
-            filePrefix = "user"
-        )
+    ): String? = withContext(Dispatchers.IO) {
+        if (!tempFile.exists() || tempFile.length() == 0L) return@withContext null
+        runCatching {
+            val destFile = newInternalPhotoFile(context, dirName, filePrefix)
+            tempFile.copyTo(destFile, overwrite = true)
+            tempFile.delete()
+            destFile.absolutePath
+        }.getOrNull()
+    }
 
     suspend fun deleteLocalPhotos(context: Context, paths: List<String?>) {
         withContext(Dispatchers.IO) {
-            val filesDirCanonical = runCatching { context.filesDir.canonicalPath }.getOrNull() ?: return@withContext
+            val baseDir = runCatching { context.filesDir.canonicalPath }.getOrNull() ?: return@withContext
             paths.filterNotNull()
                 .filter { it.isNotBlank() }
                 .forEach { path ->
                     runCatching {
                         val file = File(path)
-                        if (file.canonicalPath.startsWith(filesDirCanonical) && file.exists()) {
-                            file.delete()
-                        }
+                        if (file.canonicalPath.startsWith(baseDir) && file.exists()) file.delete()
                     }
                 }
         }
@@ -106,43 +74,30 @@ object PhotoStorageHelper {
 
     suspend fun loadImageBitmap(path: String, maxDimensionPx: Int = 720): ImageBitmap? =
         withContext(Dispatchers.IO) {
-            if (path.isBlank()) return@withContext null
-            val file = File(path)
-            if (!file.exists()) return@withContext null
-
+            if (path.isBlank() || !File(path).exists()) return@withContext null
             runCatching {
-                val boundsOptions = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(path, bounds)
+                var sampleSize = 1
+                while (bounds.outWidth / sampleSize > maxDimensionPx ||
+                    bounds.outHeight / sampleSize > maxDimensionPx
+                ) {
+                    sampleSize *= 2
                 }
-                BitmapFactory.decodeFile(path, boundsOptions)
-
-                val sampleSize = calculateInSampleSize(
-                    width = boundsOptions.outWidth,
-                    height = boundsOptions.outHeight,
-                    reqSize = maxDimensionPx
-                )
-
-                val decodeOptions = BitmapFactory.Options().apply {
-                    inSampleSize = sampleSize
-                }
-                val bitmap = BitmapFactory.decodeFile(path, decodeOptions) ?: return@withContext null
-                applyExifOrientation(path, bitmap).asImageBitmap()
+                val bitmap = BitmapFactory.decodeFile(
+                    path,
+                    BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                ) ?: return@withContext null
+                rotateIfNeeded(path, bitmap).asImageBitmap()
             }.getOrNull()
         }
 
-    private fun calculateInSampleSize(width: Int, height: Int, reqSize: Int): Int {
-        var inSampleSize = 1
-        if (height > reqSize || width > reqSize) {
-            val halfHeight = height / 2
-            val halfWidth = width / 2
-            while ((halfHeight / inSampleSize) >= reqSize && (halfWidth / inSampleSize) >= reqSize) {
-                inSampleSize *= 2
-            }
-        }
-        return inSampleSize
+    private fun newInternalPhotoFile(context: Context, dirName: String, prefix: String): File {
+        val dir = File(context.filesDir, dirName).apply { mkdirs() }
+        return File(dir, "${prefix}_${UUID.randomUUID()}.jpg")
     }
 
-    private fun applyExifOrientation(path: String, bitmap: Bitmap): Bitmap {
+    private fun rotateIfNeeded(path: String, bitmap: Bitmap): Bitmap {
         val orientation = runCatching {
             ExifInterface(path).getAttributeInt(
                 ExifInterface.TAG_ORIENTATION,
@@ -154,15 +109,13 @@ object PhotoStorageHelper {
             ExifInterface.ORIENTATION_ROTATE_90 -> 90f
             ExifInterface.ORIENTATION_ROTATE_180 -> 180f
             ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-            else -> 0f
+            else -> return bitmap
         }
-        if (degrees == 0f) return bitmap
-
-        val matrix = Matrix().apply { postRotate(degrees) }
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        if (rotated != bitmap) {
-            bitmap.recycle()
-        }
+        val rotated = Bitmap.createBitmap(
+            bitmap, 0, 0, bitmap.width, bitmap.height,
+            Matrix().apply { postRotate(degrees) }, true
+        )
+        if (rotated != bitmap) bitmap.recycle()
         return rotated
     }
 }

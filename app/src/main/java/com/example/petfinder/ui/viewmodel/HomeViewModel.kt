@@ -1,7 +1,6 @@
 package com.example.petfinder.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.petfinder.data.local.SessionManager
 import com.example.petfinder.data.local.dao.UserDao
@@ -57,9 +56,6 @@ private data class HomeFilterState(
     val feedbackMessage: String? = null
 )
 
-/**
- * ViewModel da TelaInicial: combina usuário logado, lista de pets do Room, filtros e GPS.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val userDao: UserDao,
@@ -79,19 +75,12 @@ class HomeViewModel(
         filterState,
         sessionManager.temporaryLocation
     ) { user, allPets, filters, tempLocation ->
-        val firstName = user?.fullName
-            ?.trim()
-            ?.substringBefore(" ")
-            ?.takeIf { it.isNotBlank() }
-            ?: "Visitante"
-
-        val userCityUf = user?.shortLocationLabel
-        val locationLabel = filters.gpsLocationLabel ?: userCityUf ?: "Localização não informada"
-
+        val firstName = user?.fullName?.trim()?.substringBefore(" ")?.takeIf { it.isNotBlank() } ?: "Visitante"
+        val locationLabel = filters.gpsLocationLabel ?: user?.shortLocationLabel ?: "Localização não informada"
         val refLat = tempLocation?.latitude ?: user?.latitude
         val refLon = tempLocation?.longitude ?: user?.longitude
 
-        val filteredPets = filterAndSortPets(
+        val pets = filterAndSortPets(
             allPets = allPets,
             searchQuery = filters.searchQuery,
             selectedSpecies = filters.selectedSpecies,
@@ -104,10 +93,7 @@ class HomeViewModel(
         )
 
         val activeCount = listOf(
-            filters.selectedSex,
-            filters.selectedSize,
-            filters.selectedStatus,
-            filters.maxDistanceKm
+            filters.selectedSex, filters.selectedSize, filters.selectedStatus, filters.maxDistanceKm
         ).count { it != null }
 
         HomeUiState(
@@ -122,7 +108,7 @@ class HomeViewModel(
             maxDistanceKm = filters.maxDistanceKm,
             hasLocationReference = refLat != null && refLon != null,
             activeFiltersCount = activeCount,
-            pets = filteredPets,
+            pets = pets,
             isRefreshingLocation = filters.isRefreshingLocation,
             feedbackMessage = filters.feedbackMessage
         )
@@ -132,38 +118,18 @@ class HomeViewModel(
         initialValue = HomeUiState()
     )
 
-    fun onSearchQueryChange(query: String) {
-        filterState.update { it.copy(searchQuery = query) }
-    }
+    fun onSearchQueryChange(query: String) = filterState.update { it.copy(searchQuery = query) }
+    fun onSpeciesSelected(species: PetSpecies?) = filterState.update { it.copy(selectedSpecies = species) }
 
-    fun onSpeciesSelected(species: PetSpecies?) {
-        filterState.update { it.copy(selectedSpecies = species) }
-    }
-
-    fun applyAdvancedFilters(
-        sex: PetSex?,
-        size: PetSize?,
-        status: AdoptionStatus?,
-        maxDistanceKm: Double?
-    ) {
+    fun applyAdvancedFilters(sex: PetSex?, size: PetSize?, status: AdoptionStatus?, maxDistanceKm: Double?) {
         filterState.update {
-            it.copy(
-                selectedSex = sex,
-                selectedSize = size,
-                selectedStatus = status,
-                maxDistanceKm = maxDistanceKm
-            )
+            it.copy(selectedSex = sex, selectedSize = size, selectedStatus = status, maxDistanceKm = maxDistanceKm)
         }
     }
 
     fun clearAdvancedFilters() {
         filterState.update {
-            it.copy(
-                selectedSex = null,
-                selectedSize = null,
-                selectedStatus = null,
-                maxDistanceKm = null
-            )
+            it.copy(selectedSex = null, selectedSize = null, selectedStatus = null, maxDistanceKm = null)
         }
     }
 
@@ -172,9 +138,7 @@ class HomeViewModel(
             filterState.update { it.copy(isRefreshingLocation = true, feedbackMessage = null) }
             locationHelper.getCurrentAddress()
                 .onSuccess { captured ->
-                    val label = listOfNotNull(captured.city, captured.uf)
-                        .takeIf { it.isNotEmpty() }
-                        ?.joinToString(", ")
+                    val label = listOfNotNull(captured.city, captured.uf).takeIf { it.isNotEmpty() }?.joinToString(", ")
                     sessionManager.setTemporaryLocation(captured.latitude, captured.longitude)
                     filterState.update {
                         it.copy(
@@ -195,13 +159,8 @@ class HomeViewModel(
         }
     }
 
-    fun showFeedbackMessage(message: String) {
-        filterState.update { it.copy(feedbackMessage = message) }
-    }
-
-    fun clearFeedbackMessage() {
-        filterState.update { it.copy(feedbackMessage = null) }
-    }
+    fun showFeedbackMessage(message: String) = filterState.update { it.copy(feedbackMessage = message) }
+    fun clearFeedbackMessage() = filterState.update { it.copy(feedbackMessage = null) }
 
     fun resetState() {
         filterState.value = HomeFilterState()
@@ -226,55 +185,27 @@ class HomeViewModel(
             return allPets
                 .asSequence()
                 .filter { pet ->
-                    val isNotAdopted = pet.status != AdoptionStatus.ADOTADO
-                    val matchesSpecies = selectedSpecies == null || pet.species == selectedSpecies
-                    val matchesSex = selectedSex == null || pet.sex == selectedSex
-                    val matchesSize = selectedSize == null || pet.size == selectedSize
-                    val matchesStatus = selectedStatus == null || pet.status == selectedStatus
-                    val matchesQuery = query.isEmpty() ||
-                        pet.name.contains(query, ignoreCase = true) ||
-                        (pet.breed?.contains(query, ignoreCase = true) == true) ||
-                        pet.species.label.contains(query, ignoreCase = true)
-
-                    isNotAdopted && matchesSpecies && matchesSex && matchesSize && matchesStatus && matchesQuery
+                    pet.status != AdoptionStatus.ADOTADO &&
+                        (selectedSpecies == null || pet.species == selectedSpecies) &&
+                        (selectedSex == null || pet.sex == selectedSex) &&
+                        (selectedSize == null || pet.size == selectedSize) &&
+                        (selectedStatus == null || pet.status == selectedStatus) &&
+                        (query.isEmpty() ||
+                            pet.name.contains(query, ignoreCase = true) ||
+                            pet.breed?.contains(query, ignoreCase = true) == true ||
+                            pet.species.label.contains(query, ignoreCase = true))
                 }
                 .map { pet ->
                     val dist = if (hasRefLocation && pet.latitude != null && pet.longitude != null) {
                         LocationHelper.calculateDistanceKm(refLat!!, refLon!!, pet.latitude, pet.longitude)
-                    } else {
-                        null
-                    }
+                    } else null
                     PetListItem(pet = pet, distanceKm = dist)
                 }
                 .filter { item ->
-                    if (maxDistanceKm == null || !hasRefLocation) {
-                        true
-                    } else {
-                        item.distanceKm != null && item.distanceKm <= maxDistanceKm
-                    }
+                    maxDistanceKm == null || !hasRefLocation || (item.distanceKm != null && item.distanceKm <= maxDistanceKm)
                 }
                 .toList()
-                .let { list ->
-                    if (hasRefLocation) {
-                        list.sortedBy { it.distanceKm ?: Double.MAX_VALUE }
-                    } else {
-                        list
-                    }
-                }
+                .let { list -> if (hasRefLocation) list.sortedBy { it.distanceKm ?: Double.MAX_VALUE } else list }
         }
-    }
-}
-
-class HomeViewModelFactory(
-    private val userDao: UserDao,
-    private val sessionManager: SessionManager,
-    private val petRepository: PetRepository
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
-            return HomeViewModel(userDao, sessionManager, petRepository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

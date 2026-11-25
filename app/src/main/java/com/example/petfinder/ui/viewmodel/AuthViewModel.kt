@@ -1,7 +1,6 @@
 package com.example.petfinder.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.data.repository.AuthRepository
@@ -15,8 +14,7 @@ import kotlinx.coroutines.launch
 data class LoginUiState(
     val email: String = "",
     val password: String = "",
-    val emailError: String? = null,
-    val passwordError: String? = null,
+    val errors: Map<String, String> = emptyMap(),
     val isLoading: Boolean = false
 )
 
@@ -34,17 +32,7 @@ data class RegisterUiState(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val acceptedTerms: Boolean = false,
-    val fullNameError: String? = null,
-    val emailError: String? = null,
-    val cpfError: String? = null,
-    val phoneError: String? = null,
-    val passwordError: String? = null,
-    val cepError: String? = null,
-    val streetError: String? = null,
-    val numberError: String? = null,
-    val cityError: String? = null,
-    val ufError: String? = null,
-    val termsError: String? = null,
+    val errors: Map<String, String> = emptyMap(),
     val isLoading: Boolean = false,
     val isFetchingLocation: Boolean = false
 )
@@ -52,13 +40,9 @@ data class RegisterUiState(
 data class AuthUiState(
     val login: LoginUiState = LoginUiState(),
     val register: RegisterUiState = RegisterUiState(),
-    val authenticatedUser: UserEntity? = null,
     val feedbackMessage: String? = null
 )
 
-/**
- * ViewModel compartilhado entre LoginScreen e RegisterScreen.
- */
 class AuthViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
@@ -66,41 +50,29 @@ class AuthViewModel(
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
-    // --- Campos de Login ---
-
-    fun onLoginEmailChange(value: String) {
-        _uiState.update { it.copy(login = it.login.copy(email = value, emailError = null)) }
+    fun onLoginEmailChange(value: String) = updateLogin {
+        copy(email = value, errors = errors - KEY_EMAIL)
     }
 
-    fun onLoginPasswordChange(value: String) {
-        _uiState.update { it.copy(login = it.login.copy(password = value, passwordError = null)) }
+    fun onLoginPasswordChange(value: String) = updateLogin {
+        copy(password = value, errors = errors - KEY_PASSWORD)
     }
 
     fun submitLogin(onSuccess: (UserEntity) -> Unit) {
-        val loginState = _uiState.value.login
-        val validation = validateLogin(loginState)
-        if (validation.hasErrors) {
-            _uiState.update {
-                it.copy(
-                    login = it.login.copy(
-                        emailError = validation.emailError,
-                        passwordError = validation.passwordError
-                    )
-                )
-            }
+        val state = _uiState.value.login
+        val errors = validateLogin(state)
+        if (errors.isNotEmpty()) {
+            updateLogin { copy(errors = errors) }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(login = it.login.copy(isLoading = true), feedbackMessage = null)
-            }
-            authRepository.login(loginState.email, loginState.password)
+            _uiState.update { it.copy(login = it.login.copy(isLoading = true), feedbackMessage = null) }
+            authRepository.login(state.email, state.password)
                 .onSuccess { user ->
                     _uiState.update {
                         it.copy(
                             login = it.login.copy(isLoading = false, password = ""),
-                            authenticatedUser = user,
                             feedbackMessage = "Bem-vindo(a), ${user.fullName}!"
                         )
                     }
@@ -117,95 +89,60 @@ class AuthViewModel(
         }
     }
 
-    // --- Campos de Cadastro ---
-
-    fun onRegisterFullNameChange(value: String) {
-        _uiState.update {
-            it.copy(register = it.register.copy(fullName = value, fullNameError = null))
-        }
+    fun onRegisterFullNameChange(value: String) = updateRegister {
+        copy(fullName = value, errors = errors - KEY_FULL_NAME)
     }
 
-    fun onRegisterEmailChange(value: String) {
-        _uiState.update {
-            it.copy(register = it.register.copy(email = value, emailError = null))
-        }
+    fun onRegisterEmailChange(value: String) = updateRegister {
+        copy(email = value, errors = errors - KEY_EMAIL)
     }
 
-    fun onRegisterCpfChange(value: String) {
-        val digits = value.filter { it.isDigit() }.take(11)
-        _uiState.update {
-            it.copy(register = it.register.copy(cpf = digits, cpfError = null))
-        }
+    fun onRegisterCpfChange(value: String) = updateRegister {
+        copy(cpf = value.filter { it.isDigit() }.take(11), errors = errors - KEY_CPF)
     }
 
-    fun onRegisterPhoneChange(value: String) {
-        val digits = value.filter { it.isDigit() }.take(11)
-        _uiState.update {
-            it.copy(register = it.register.copy(phone = digits, phoneError = null))
-        }
+    fun onRegisterPhoneChange(value: String) = updateRegister {
+        copy(phone = value.filter { it.isDigit() }.take(11), errors = errors - KEY_PHONE)
     }
 
-    fun onRegisterPasswordChange(value: String) {
-        _uiState.update {
-            it.copy(register = it.register.copy(password = value, passwordError = null))
-        }
+    fun onRegisterPasswordChange(value: String) = updateRegister {
+        copy(password = value, errors = errors - KEY_PASSWORD)
     }
 
-    fun onRegisterCepChange(value: String) {
-        val digits = value.filter { it.isDigit() }.take(8)
-        _uiState.update {
-            it.copy(register = it.register.copy(cep = digits, cepError = null))
-        }
+    fun onRegisterCepChange(value: String) = updateRegister {
+        copy(cep = value.filter { it.isDigit() }.take(8), errors = errors - KEY_CEP)
     }
 
-    fun onRegisterStreetChange(value: String) {
-        _uiState.update {
-            it.copy(register = it.register.copy(street = value, streetError = null))
-        }
+    fun onRegisterStreetChange(value: String) = updateRegister {
+        copy(street = value, errors = errors - KEY_STREET)
     }
 
-    fun onRegisterNumberChange(value: String) {
-        _uiState.update {
-            it.copy(register = it.register.copy(number = value, numberError = null))
-        }
+    fun onRegisterNumberChange(value: String) = updateRegister {
+        copy(number = value, errors = errors - KEY_NUMBER)
     }
 
-    fun onRegisterCityChange(value: String) {
-        _uiState.update {
-            it.copy(register = it.register.copy(city = value, cityError = null))
-        }
+    fun onRegisterCityChange(value: String) = updateRegister {
+        copy(city = value, errors = errors - KEY_CITY)
     }
 
-    fun onRegisterUfChange(value: String) {
-        val letters = value.filter { it.isLetter() }.take(2).uppercase()
-        _uiState.update {
-            it.copy(register = it.register.copy(uf = letters, ufError = null))
-        }
+    fun onRegisterUfChange(value: String) = updateRegister {
+        copy(uf = value.filter { it.isLetter() }.take(2).uppercase(), errors = errors - KEY_UF)
     }
 
-    fun onAcceptedTermsChange(accepted: Boolean) {
-        _uiState.update {
-            it.copy(register = it.register.copy(acceptedTerms = accepted, termsError = null))
-        }
+    fun onAcceptedTermsChange(accepted: Boolean) = updateRegister {
+        copy(acceptedTerms = accepted, errors = errors - KEY_TERMS)
     }
 
     fun fillAddressFromGps(locationHelper: LocationHelper) {
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    register = it.register.copy(isFetchingLocation = true),
-                    feedbackMessage = null
-                )
-            }
+            updateRegister { copy(isFetchingLocation = true) }
+            _uiState.update { it.copy(feedbackMessage = null) }
+
             locationHelper.getCurrentAddress()
                 .onSuccess { captured ->
                     val current = _uiState.value.register
-                    val hasAnyAddressField = listOf(
-                        captured.cep,
-                        captured.street,
-                        captured.city,
-                        captured.uf
-                    ).any { !it.isNullOrBlank() }
+                    val hasAddress = listOf(captured.cep, captured.street, captured.city, captured.uf)
+                        .any { !it.isNullOrBlank() }
 
                     _uiState.update {
                         it.copy(
@@ -218,12 +155,9 @@ class AuthViewModel(
                                 number = captured.number?.takeIf { n -> n.isNotBlank() } ?: current.number,
                                 city = captured.city?.takeIf { c -> c.isNotBlank() } ?: current.city,
                                 uf = captured.uf?.takeIf { u -> u.length == 2 } ?: current.uf,
-                                cepError = null,
-                                streetError = null,
-                                cityError = null,
-                                ufError = null
+                                errors = current.errors - setOf(KEY_CEP, KEY_STREET, KEY_CITY, KEY_UF)
                             ),
-                            feedbackMessage = if (hasAnyAddressField) {
+                            feedbackMessage = if (hasAddress) {
                                 "Endereço preenchido pelo GPS!"
                             } else {
                                 "Localização GPS salva! Complete os campos do endereço."
@@ -243,86 +177,53 @@ class AuthViewModel(
     }
 
     fun submitRegister(onSuccess: (UserEntity) -> Unit) {
-        val registerState = _uiState.value.register
-        val validation = validateRegister(registerState)
-        if (validation.hasErrors) {
-            _uiState.update {
-                it.copy(
-                    register = it.register.copy(
-                        fullNameError = validation.fullNameError,
-                        emailError = validation.emailError,
-                        cpfError = validation.cpfError,
-                        phoneError = validation.phoneError,
-                        passwordError = validation.passwordError,
-                        cepError = validation.cepError,
-                        streetError = validation.streetError,
-                        numberError = validation.numberError,
-                        cityError = validation.cityError,
-                        ufError = validation.ufError,
-                        termsError = validation.termsError
-                    )
-                )
-            }
+        val state = _uiState.value.register
+        val errors = validateRegister(state)
+        if (errors.isNotEmpty()) {
+            updateRegister { copy(errors = errors) }
             return
         }
 
         viewModelScope.launch {
-            _uiState.update {
-                it.copy(register = it.register.copy(isLoading = true), feedbackMessage = null)
-            }
+            _uiState.update { it.copy(register = it.register.copy(isLoading = true), feedbackMessage = null) }
             authRepository.register(
-                fullName = registerState.fullName,
-                email = registerState.email,
-                password = registerState.password,
-                cpf = registerState.cpf,
-                phone = registerState.phone,
-                cep = registerState.cep,
-                street = registerState.street,
-                number = registerState.number,
-                city = registerState.city,
-                uf = registerState.uf,
-                latitude = registerState.latitude,
-                longitude = registerState.longitude
-            )
-                .onSuccess { user ->
-                    _uiState.update {
-                        it.copy(
-                            register = RegisterUiState(),
-                            login = LoginUiState(email = user.email),
-                            authenticatedUser = user,
-                            feedbackMessage = "Conta criada com sucesso! Bem-vindo(a), ${user.fullName}."
-                        )
-                    }
-                    onSuccess(user)
+                fullName = state.fullName,
+                email = state.email,
+                password = state.password,
+                cpf = state.cpf,
+                phone = state.phone,
+                cep = state.cep,
+                street = state.street,
+                number = state.number,
+                city = state.city,
+                uf = state.uf,
+                latitude = state.latitude,
+                longitude = state.longitude
+            ).onSuccess { user ->
+                _uiState.update {
+                    it.copy(
+                        register = RegisterUiState(),
+                        login = LoginUiState(email = user.email),
+                        feedbackMessage = "Conta criada com sucesso! Bem-vindo(a), ${user.fullName}."
+                    )
                 }
-                .onFailure { error ->
-                    _uiState.update {
-                        it.copy(
-                            register = it.register.copy(isLoading = false),
-                            feedbackMessage = error.message ?: "Não foi possível criar a conta."
-                        )
-                    }
+                onSuccess(user)
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        register = it.register.copy(isLoading = false),
+                        feedbackMessage = error.message ?: "Não foi possível criar a conta."
+                    )
                 }
+            }
         }
     }
 
     fun clearErrors() {
-        _uiState.update { state ->
-            state.copy(
-                login = state.login.copy(emailError = null, passwordError = null),
-                register = state.register.copy(
-                    fullNameError = null,
-                    emailError = null,
-                    cpfError = null,
-                    phoneError = null,
-                    passwordError = null,
-                    cepError = null,
-                    streetError = null,
-                    numberError = null,
-                    cityError = null,
-                    ufError = null,
-                    termsError = null
-                )
+        _uiState.update {
+            it.copy(
+                login = it.login.copy(errors = emptyMap()),
+                register = it.register.copy(errors = emptyMap())
             )
         }
     }
@@ -335,47 +236,30 @@ class AuthViewModel(
         _uiState.update { it.copy(feedbackMessage = message) }
     }
 
-    internal data class LoginValidationResult(
-        val emailError: String? = null,
-        val passwordError: String? = null
-    ) {
-        val hasErrors: Boolean
-            get() = emailError != null || passwordError != null
+    private inline fun updateLogin(transform: LoginUiState.() -> LoginUiState) {
+        _uiState.update { it.copy(login = it.login.transform()) }
     }
 
-    internal data class RegisterValidationResult(
-        val fullNameError: String? = null,
-        val emailError: String? = null,
-        val cpfError: String? = null,
-        val phoneError: String? = null,
-        val passwordError: String? = null,
-        val cepError: String? = null,
-        val streetError: String? = null,
-        val numberError: String? = null,
-        val cityError: String? = null,
-        val ufError: String? = null,
-        val termsError: String? = null
-    ) {
-        val hasErrors: Boolean
-            get() = listOf(
-                fullNameError,
-                emailError,
-                cpfError,
-                phoneError,
-                passwordError,
-                cepError,
-                streetError,
-                numberError,
-                cityError,
-                ufError,
-                termsError
-            ).any { it != null }
+    private inline fun updateRegister(transform: RegisterUiState.() -> RegisterUiState) {
+        _uiState.update { it.copy(register = it.register.transform()) }
     }
 
     companion object {
+        const val KEY_FULL_NAME = "fullName"
+        const val KEY_EMAIL = "email"
+        const val KEY_CPF = "cpf"
+        const val KEY_PHONE = "phone"
+        const val KEY_PASSWORD = "password"
+        const val KEY_CEP = "cep"
+        const val KEY_STREET = "street"
+        const val KEY_NUMBER = "number"
+        const val KEY_CITY = "city"
+        const val KEY_UF = "uf"
+        const val KEY_TERMS = "terms"
+
         private val EMAIL_REGEX = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
 
-        private fun validateEmail(email: String): String? {
+        internal fun validateEmail(email: String): String? {
             val trimmed = email.trim()
             return when {
                 trimmed.isEmpty() -> "Informe o e-mail."
@@ -384,83 +268,33 @@ class AuthViewModel(
             }
         }
 
-        internal fun validateLogin(state: LoginUiState): LoginValidationResult {
-            val passwordError = when {
-                state.password.isEmpty() -> "Informe a senha."
-                state.password.length < 8 -> "A senha deve ter pelo menos 8 caracteres."
-                else -> null
+        internal fun validateLogin(state: LoginUiState): Map<String, String> = buildMap {
+            validateEmail(state.email)?.let { put(KEY_EMAIL, it) }
+            when {
+                state.password.isEmpty() -> put(KEY_PASSWORD, "Informe a senha.")
+                state.password.length < 8 -> put(KEY_PASSWORD, "A senha deve ter pelo menos 8 caracteres.")
             }
-            return LoginValidationResult(
-                emailError = validateEmail(state.email),
-                passwordError = passwordError
-            )
         }
 
-        internal fun validateRegister(state: RegisterUiState): RegisterValidationResult {
-            val fullNameError = if (state.fullName.trim().length < 3) {
-                "Informe o nome completo."
-            } else {
-                null
+        internal fun validateRegister(state: RegisterUiState): Map<String, String> = buildMap {
+            if (state.fullName.trim().length < 3) put(KEY_FULL_NAME, "Informe o nome completo.")
+            validateEmail(state.email)?.let { put(KEY_EMAIL, it) }
+            if (state.cpf.filter { it.isDigit() }.length != 11) put(KEY_CPF, "O CPF deve conter 11 dígitos.")
+            if (state.phone.filter { it.isDigit() }.length !in 10..11) {
+                put(KEY_PHONE, "Informe o telefone com DDD (10 ou 11 dígitos).")
             }
-            val cpfDigits = state.cpf.filter { it.isDigit() }
-            val cpfError = if (cpfDigits.length != 11) {
-                "O CPF deve conter 11 dígitos."
-            } else {
-                null
+            when {
+                state.password.isEmpty() -> put(KEY_PASSWORD, "Crie uma senha.")
+                state.password.length < 8 -> put(KEY_PASSWORD, "Mínimo de 8 caracteres.")
             }
-            val phoneDigits = state.phone.filter { it.isDigit() }
-            val phoneError = if (phoneDigits.length !in 10..11) {
-                "Informe o telefone com DDD (10 ou 11 dígitos)."
-            } else {
-                null
+            if (state.cep.filter { it.isDigit() }.length != 8) put(KEY_CEP, "CEP inválido.")
+            if (state.street.trim().isEmpty()) put(KEY_STREET, "Informe a rua.")
+            if (state.number.trim().isEmpty()) put(KEY_NUMBER, "Informe o N°.")
+            if (state.city.trim().isEmpty()) put(KEY_CITY, "Informe a cidade.")
+            if (state.uf.trim().filter { it.isLetter() }.length != 2) put(KEY_UF, "UF.")
+            if (!state.acceptedTerms) {
+                put(KEY_TERMS, "Você precisa aceitar os Termos de uso e a Política de privacidade.")
             }
-            val passwordError = when {
-                state.password.isEmpty() -> "Crie uma senha."
-                state.password.length < 8 -> "Mínimo de 8 caracteres."
-                else -> null
-            }
-            val cepDigits = state.cep.filter { it.isDigit() }
-            val cepError = if (cepDigits.length != 8) {
-                "CEP inválido."
-            } else {
-                null
-            }
-            val streetError = if (state.street.trim().isEmpty()) "Informe a rua." else null
-            val numberError = if (state.number.trim().isEmpty()) "Informe o N°." else null
-            val cityError = if (state.city.trim().isEmpty()) "Informe a cidade." else null
-            val ufLetters = state.uf.trim().filter { it.isLetter() }
-            val ufError = if (ufLetters.length != 2) "UF." else null
-            val termsError = if (!state.acceptedTerms) {
-                "Você precisa aceitar os Termos de uso e a Política de privacidade."
-            } else {
-                null
-            }
-
-            return RegisterValidationResult(
-                fullNameError = fullNameError,
-                emailError = validateEmail(state.email),
-                cpfError = cpfError,
-                phoneError = phoneError,
-                passwordError = passwordError,
-                cepError = cepError,
-                streetError = streetError,
-                numberError = numberError,
-                cityError = cityError,
-                ufError = ufError,
-                termsError = termsError
-            )
         }
-    }
-}
-
-class AuthViewModelFactory(
-    private val authRepository: AuthRepository
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
-            return AuthViewModel(authRepository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

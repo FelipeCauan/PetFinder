@@ -1,8 +1,5 @@
 package com.example.petfinder.ui.telas
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,8 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.MyLocation
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +41,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,25 +53,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.ui.components.CepVisualTransformation
 import com.example.petfinder.ui.components.CpfVisualTransformation
+import com.example.petfinder.ui.components.PetFinderPasswordField
 import com.example.petfinder.ui.components.PetFinderPrimaryButton
 import com.example.petfinder.ui.components.PetFinderTextField
 import com.example.petfinder.ui.components.PhoneVisualTransformation
-import com.example.petfinder.ui.theme.PetFinderTheme
+import com.example.petfinder.ui.components.rememberGpsRequester
 import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.RegisterUiState
 import com.example.petfinder.util.LocationHelper
 
-/**
- * Tela de Cadastro stateful conectada ao AuthViewModel.
- */
 @Composable
 fun RegisterScreen(
     viewModel: AuthViewModel,
@@ -88,24 +79,16 @@ fun RegisterScreen(
     val context = LocalContext.current
     val locationHelper = remember(context) { LocationHelper(context) }
 
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            viewModel.fillAddressFromGps(locationHelper)
-        } else {
-            viewModel.showFeedbackMessage("Permissão de localização negada. Preencha o endereço manualmente.")
-        }
-    }
+    val requestGps = rememberGpsRequester(
+        locationHelper = locationHelper,
+        onPermissionGranted = { viewModel.fillAddressFromGps(locationHelper) },
+        onPermissionDenied = { viewModel.showFeedbackMessage("Permissão de localização negada. Preencha o endereço manualmente.") }
+    )
 
     LaunchedEffect(authState.feedbackMessage) {
-        val message = authState.feedbackMessage
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearFeedbackMessage()
-        }
+        val message = authState.feedbackMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearFeedbackMessage()
     }
 
     RegisterContent(
@@ -126,26 +109,12 @@ fun RegisterScreen(
         onCityChange = viewModel::onRegisterCityChange,
         onUfChange = viewModel::onRegisterUfChange,
         onAcceptedTermsChange = viewModel::onAcceptedTermsChange,
-        onUseGpsClick = {
-            if (locationHelper.hasLocationPermission()) {
-                viewModel.fillAddressFromGps(locationHelper)
-            } else {
-                locationPermissionLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
-                )
-            }
-        },
+        onUseGpsClick = requestGps,
         onSubmit = { viewModel.submitRegister(onRegisterSuccess) },
         modifier = modifier
     )
 }
 
-/**
- * Conteúdo stateless da tela de Cadastro (State Hoisting).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterContent(
@@ -167,8 +136,7 @@ fun RegisterContent(
     onSubmit: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var passwordVisible by remember { mutableStateOf(false) }
-    var showTermsDialog by remember { mutableStateOf(false) }
+    var showTermsDialog by rememberSaveable { mutableStateOf(false) }
     val cpfTransformation = remember { CpfVisualTransformation() }
     val phoneTransformation = remember { PhoneVisualTransformation() }
     val cepTransformation = remember { CepVisualTransformation() }
@@ -179,15 +147,13 @@ fun RegisterContent(
             title = { Text("Termos de uso e Privacidade") },
             text = {
                 Text(
-                    "Seus dados cadastrais (nome, e-mail, CPF e endereço) são armazenados " +
+                    "Seus dados cadastrais (nome, e-mail, CPF, telefone e endereço) são armazenados " +
                         "localmente no dispositivo apenas para identificar tutores e adotantes " +
                         "responsáveis no PetFinder."
                 )
             },
             confirmButton = {
-                TextButton(onClick = { showTermsDialog = false }) {
-                    Text("Entendi")
-                }
+                TextButton(onClick = { showTermsDialog = false }) { Text("Entendi") }
             }
         )
     }
@@ -198,23 +164,13 @@ fun RegisterContent(
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = "Criar conta",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text("Criar conta", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack, enabled = !state.isLoading) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar para login"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar para login")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         }
     ) { innerPadding ->
@@ -240,12 +196,9 @@ fun RegisterContent(
                 value = state.fullName,
                 onValueChange = onFullNameChange,
                 placeholder = "Mariana Costa",
-                errorText = state.fullNameError,
+                errorText = state.errors[AuthViewModel.KEY_FULL_NAME],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -255,12 +208,9 @@ fun RegisterContent(
                 value = state.email,
                 onValueChange = onEmailChange,
                 placeholder = "seu@email.com",
-                errorText = state.emailError,
+                errorText = state.errors[AuthViewModel.KEY_EMAIL],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -271,12 +221,9 @@ fun RegisterContent(
                 onValueChange = onCpfChange,
                 placeholder = "000.000.000-00",
                 visualTransformation = cpfTransformation,
-                errorText = state.cpfError,
+                errorText = state.errors[AuthViewModel.KEY_CPF],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -287,50 +234,22 @@ fun RegisterContent(
                 onValueChange = onPhoneChange,
                 placeholder = "(00) 00000-0000",
                 visualTransformation = phoneTransformation,
-                errorText = state.phoneError,
+                errorText = state.errors[AuthViewModel.KEY_PHONE],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            PetFinderTextField(
+            PetFinderPasswordField(
                 label = "Senha",
                 trailingHint = "Mínimo de 8 caracteres",
                 value = state.password,
                 onValueChange = onPasswordChange,
                 placeholder = "Crie uma senha",
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) {
-                                Icons.Outlined.VisibilityOff
-                            } else {
-                                Icons.Outlined.Visibility
-                            },
-                            contentDescription = if (passwordVisible) {
-                                "Ocultar senha"
-                            } else {
-                                "Mostrar senha"
-                            },
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                visualTransformation = if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                errorText = state.passwordError,
+                errorText = state.errors[AuthViewModel.KEY_PASSWORD],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -351,33 +270,16 @@ fun RegisterContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(
-                            enabled = !state.isLoading && !state.isFetchingLocation,
-                            onClick = onUseGpsClick
-                        )
+                        .clickable(enabled = !state.isLoading && !state.isFetchingLocation, onClick = onUseGpsClick)
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
                     if (state.isFetchingLocation) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
                     } else {
-                        Icon(
-                            imageVector = Icons.Outlined.MyLocation,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Outlined.MyLocation, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Usar GPS",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Text("Usar GPS", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                 }
             }
 
@@ -389,31 +291,22 @@ fun RegisterContent(
                 onValueChange = onCepChange,
                 placeholder = "00000-000",
                 visualTransformation = cepTransformation,
-                errorText = state.cepError,
+                errorText = state.errors[AuthViewModel.KEY_CEP],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PetFinderTextField(
                     label = "Rua",
                     value = state.street,
                     onValueChange = onStreetChange,
                     placeholder = "Rua, avenida",
-                    errorText = state.streetError,
+                    errorText = state.errors[AuthViewModel.KEY_STREET],
                     enabled = !state.isLoading,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Next
-                    ),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                     modifier = Modifier.weight(2.2f)
                 )
                 PetFinderTextField(
@@ -421,33 +314,24 @@ fun RegisterContent(
                     value = state.number,
                     onValueChange = onNumberChange,
                     placeholder = "N°",
-                    errorText = state.numberError,
+                    errorText = state.errors[AuthViewModel.KEY_NUMBER],
                     enabled = !state.isLoading,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Next
-                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PetFinderTextField(
                     label = "Cidade",
                     value = state.city,
                     onValueChange = onCityChange,
                     placeholder = "Cidade",
-                    errorText = state.cityError,
+                    errorText = state.errors[AuthViewModel.KEY_CITY],
                     enabled = !state.isLoading,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Next
-                    ),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
                     modifier = Modifier.weight(2.4f)
                 )
                 PetFinderTextField(
@@ -455,17 +339,10 @@ fun RegisterContent(
                     value = state.uf,
                     onValueChange = onUfChange,
                     placeholder = "SP",
-                    errorText = state.ufError,
+                    errorText = state.errors[AuthViewModel.KEY_UF],
                     enabled = !state.isLoading,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Characters,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
-                            if (!state.isLoading) onSubmit()
-                        }
-                    ),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { if (!state.isLoading) onSubmit() }),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -473,34 +350,13 @@ fun RegisterContent(
             Spacer(modifier = Modifier.height(18.dp))
 
             Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = state.acceptedTerms,
-                        onCheckedChange = onAcceptedTermsChange,
-                        enabled = !state.isLoading
-                    )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = state.acceptedTerms, onCheckedChange = onAcceptedTermsChange, enabled = !state.isLoading)
                     val termsText = buildAnnotatedString {
                         append("Li e aceito os ")
-                        withStyle(
-                            SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        ) {
-                            append("Termos de uso")
-                        }
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Termos de uso") }
                         append(" e a ")
-                        withStyle(
-                            SpanStyle(
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        ) {
-                            append("Política de privacidade")
-                        }
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)) { append("Política de privacidade") }
                         append(".")
                     }
                     Text(
@@ -509,15 +365,13 @@ fun RegisterContent(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
                             .weight(1f)
-                            .clickable(enabled = !state.isLoading) {
-                                showTermsDialog = true
-                            }
+                            .clickable(enabled = !state.isLoading) { showTermsDialog = true }
                             .padding(vertical = 4.dp)
                     )
                 }
-                if (state.termsError != null) {
+                state.errors[AuthViewModel.KEY_TERMS]?.let { termsErr ->
                     Text(
-                        text = state.termsError,
+                        text = termsErr,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.padding(start = 12.dp)
@@ -527,38 +381,9 @@ fun RegisterContent(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            PetFinderPrimaryButton(
-                text = "Criar conta",
-                onClick = onSubmit,
-                isLoading = state.isLoading
-            )
+            PetFinderPrimaryButton(text = "Criar conta", onClick = onSubmit, isLoading = state.isLoading)
 
             Spacer(modifier = Modifier.height(24.dp))
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun RegisterScreenPreview() {
-    PetFinderTheme {
-        RegisterContent(
-            state = RegisterUiState(acceptedTerms = true),
-            snackbarHostState = remember { SnackbarHostState() },
-            onNavigateBack = {},
-            onFullNameChange = {},
-            onEmailChange = {},
-            onCpfChange = {},
-            onPhoneChange = {},
-            onPasswordChange = {},
-            onCepChange = {},
-            onStreetChange = {},
-            onNumberChange = {},
-            onCityChange = {},
-            onUfChange = {},
-            onAcceptedTermsChange = {},
-            onUseGpsClick = {},
-            onSubmit = {}
-        )
     }
 }

@@ -1,7 +1,6 @@
 package com.example.petfinder.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.petfinder.data.local.SessionManager
 import com.example.petfinder.data.local.dao.UserDao
@@ -18,7 +17,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 
 data class ProfileUiState(
     val user: UserEntity? = null,
@@ -28,9 +26,6 @@ data class ProfileUiState(
     val feedbackMessage: String? = null
 )
 
-/**
- * ViewModel da TelaPerfil: observa o usuário logado e os animais cadastrados por ele no Room.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProfileViewModel(
     private val userDao: UserDao,
@@ -67,30 +62,7 @@ class ProfileViewModel(
         initialValue = ProfileUiState()
     )
 
-    fun showFeedbackMessage(message: String) {
-        feedbackState.update { message }
-    }
-
-    fun clearFeedbackMessage() {
-        feedbackState.update { null }
-    }
-
-    fun logout() {
-        authRepository.logout()
-    }
-}
-
-class ProfileViewModelFactory(
-    private val userDao: UserDao,
-    private val sessionManager: SessionManager,
-    private val authRepository: AuthRepository,
-    private val petRepository: PetRepository
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ProfileViewModel::class.java)) {
-            return ProfileViewModel(userDao, sessionManager, authRepository, petRepository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
+    fun showFeedbackMessage(message: String) { feedbackState.value = message }
+    fun clearFeedbackMessage() { feedbackState.value = null }
+    fun logout() = authRepository.logout()
 }

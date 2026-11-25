@@ -51,18 +51,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.petfinder.data.local.entity.PetEntity
-import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.data.model.AdoptionStatus
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
 import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.components.formatPhone
-import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.ProfileUiState
 import com.example.petfinder.ui.viewmodel.ProfileViewModel
 
@@ -568,32 +565,4 @@ private fun formatCpf(cpfDigits: String): String {
     if (cpfDigits.length != 11) return cpfDigits
     return "${cpfDigits.substring(0, 3)}.${cpfDigits.substring(3, 6)}." +
         "${cpfDigits.substring(6, 9)}-${cpfDigits.substring(9, 11)}"
-}
-
-@Preview(showBackground = true)
-@Composable
-fun TelaPerfilPreview() {
-    PetFinderTheme {
-        TelaPerfilContent(
-            state = ProfileUiState(
-                user = UserEntity(
-                    id = 1L,
-                    fullName = "Marina de Lima Freire",
-                    email = "marina.lima@gmail.com",
-                    passwordHash = "",
-                    cpf = "12345678901",
-                    cep = "62960000",
-                    street = "Rua Principal",
-                    number = "100",
-                    city = "Tabuleiro do Norte",
-                    uf = "CE"
-                )
-            ),
-            snackbarHostState = remember { SnackbarHostState() },
-            onPetClick = {},
-            onEditProfileClick = {},
-            onLogout = {},
-            onBottomTabSelected = {}
-        )
-    }
 }

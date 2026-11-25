@@ -2,9 +2,7 @@ package com.example.petfinder.ui.viewmodel
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.data.repository.AuthRepository
 import com.example.petfinder.data.repository.PetRepository
 import com.example.petfinder.util.LocationHelper
@@ -36,26 +34,16 @@ data class EditProfileUiState(
     val longitude: Double? = null,
     val newPassword: String = "",
     val confirmPassword: String = "",
-    val fullNameError: String? = null,
-    val emailError: String? = null,
-    val cpfError: String? = null,
-    val phoneError: String? = null,
-    val addressError: String? = null,
-    val newPasswordError: String? = null,
-    val confirmPasswordError: String? = null,
+    val errors: Map<String, String> = emptyMap(),
     val isLoadingUser: Boolean = true,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val isFetchingLocation: Boolean = false,
     val feedbackMessage: String? = null
 ) {
-    val isBusy: Boolean
-        get() = isSaving || isDeleting
+    val isBusy: Boolean get() = isSaving || isDeleting
 }
 
-/**
- * ViewModel responsável pela tela de edição de perfil e exclusão da conta do usuário.
- */
 class EditProfileViewModel(
     private val authRepository: AuthRepository,
     private val petRepository: PetRepository
@@ -97,48 +85,37 @@ class EditProfileViewModel(
     }
 
     fun onPhotoSelected(path: String) {
-        if (path.isBlank()) return
-        _uiState.update { it.copy(photoPath = path) }
+        if (path.isNotBlank()) _uiState.update { it.copy(photoPath = path) }
     }
 
-    fun onRemovePhoto() {
-        _uiState.update { it.copy(photoPath = null) }
+    fun onRemovePhoto() = _uiState.update { it.copy(photoPath = null) }
+
+    fun onFullNameChange(value: String) = _uiState.update {
+        it.copy(fullName = value, errors = it.errors - KEY_FULL_NAME)
     }
 
-    fun onFullNameChange(value: String) {
-        _uiState.update { it.copy(fullName = value, fullNameError = null) }
+    fun onEmailChange(value: String) = _uiState.update {
+        it.copy(email = value, errors = it.errors - KEY_EMAIL)
     }
 
-    fun onEmailChange(value: String) {
-        _uiState.update { it.copy(email = value, emailError = null) }
+    fun onCpfChange(value: String) = _uiState.update {
+        it.copy(cpf = value.filter { c -> c.isDigit() }.take(11), errors = it.errors - KEY_CPF)
     }
 
-    fun onCpfChange(value: String) {
-        val digits = value.filter { it.isDigit() }.take(11)
-        _uiState.update { it.copy(cpf = digits, cpfError = null) }
+    fun onPhoneChange(value: String) = _uiState.update {
+        it.copy(phone = value.filter { c -> c.isDigit() }.take(11), errors = it.errors - KEY_PHONE)
     }
 
-    fun onPhoneChange(value: String) {
-        val digits = value.filter { it.isDigit() }.take(11)
-        _uiState.update { it.copy(phone = digits, phoneError = null) }
+    fun onAddressChange(value: String) = _uiState.update {
+        it.copy(addressText = value, errors = it.errors - KEY_ADDRESS)
     }
 
-    fun onAddressChange(value: String) {
-        _uiState.update { it.copy(addressText = value, addressError = null) }
+    fun onNewPasswordChange(value: String) = _uiState.update {
+        it.copy(newPassword = value, errors = it.errors - KEY_NEW_PASSWORD - KEY_CONFIRM_PASSWORD)
     }
 
-    fun onNewPasswordChange(value: String) {
-        _uiState.update {
-            it.copy(
-                newPassword = value,
-                newPasswordError = null,
-                confirmPasswordError = null
-            )
-        }
-    }
-
-    fun onConfirmPasswordChange(value: String) {
-        _uiState.update { it.copy(confirmPassword = value, confirmPasswordError = null) }
+    fun onConfirmPasswordChange(value: String) = _uiState.update {
+        it.copy(confirmPassword = value, errors = it.errors - KEY_CONFIRM_PASSWORD)
     }
 
     fun fillLocationFromGps(locationHelper: LocationHelper) {
@@ -153,23 +130,12 @@ class EditProfileViewModel(
                     val nextUf = captured.uf?.takeIf { it.length == 2 } ?: current.uf
                     val nextCep = captured.cep?.takeIf { it.length == 8 } ?: current.cep
 
-                    val streetPart = listOf(nextStreet, nextNumber)
-                        .filter { it.isNotBlank() }
-                        .joinToString(", ")
-                    val cityPart = listOf(nextCity, nextUf)
-                        .filter { it.isNotBlank() }
-                        .joinToString(", ")
+                    val streetPart = listOf(nextStreet, nextNumber).filter { it.isNotBlank() }.joinToString(", ")
+                    val cityPart = listOf(nextCity, nextUf).filter { it.isNotBlank() }.joinToString(", ")
                     val formatted = listOf(streetPart, cityPart)
                         .filter { it.isNotBlank() }
                         .joinToString(" — ")
-                        .ifBlank {
-                            String.format(
-                                Locale.US,
-                                "GPS: %.4f, %.4f",
-                                captured.latitude,
-                                captured.longitude
-                            )
-                        }
+                        .ifBlank { String.format(Locale.US, "GPS: %.4f, %.4f", captured.latitude, captured.longitude) }
 
                     _uiState.update {
                         it.copy(
@@ -182,9 +148,9 @@ class EditProfileViewModel(
                             uf = nextUf,
                             latitude = captured.latitude,
                             longitude = captured.longitude,
-                            addressError = null,
+                            errors = it.errors - KEY_ADDRESS,
                             isFetchingLocation = false,
-                            feedbackMessage = "Endereço atualizado pelo GPS!"
+                            feedbackMessage = "Localização capturada pelo GPS."
                         )
                     }
                 }
@@ -206,19 +172,9 @@ class EditProfileViewModel(
         onSessionExpired: () -> Unit
     ) {
         val current = _uiState.value
-        val validation = validate(current)
-        if (validation.hasErrors) {
-            _uiState.update {
-                it.copy(
-                    fullNameError = validation.fullNameError,
-                    emailError = validation.emailError,
-                    cpfError = validation.cpfError,
-                    phoneError = validation.phoneError,
-                    addressError = validation.addressError,
-                    newPasswordError = validation.newPasswordError,
-                    confirmPasswordError = validation.confirmPasswordError
-                )
-            }
+        val errors = validate(current)
+        if (errors.isNotEmpty()) {
+            _uiState.update { it.copy(errors = errors) }
             return
         }
 
@@ -232,29 +188,16 @@ class EditProfileViewModel(
             }
 
             val trimmedAddress = current.addressText.trim()
-            val matchesGps = current.gpsAddressText != null &&
-                trimmedAddress == current.gpsAddressText.trim()
+            val matchesGps = current.gpsAddressText != null && trimmedAddress == current.gpsAddressText.trim()
             val matchesInitial = trimmedAddress == current.initialAddressText.trim()
 
-            val resolvedAddress = when {
-                matchesGps -> ParsedAddress(
-                    cep = current.cep,
-                    street = current.street,
-                    number = current.number,
-                    city = current.city,
-                    uf = current.uf
-                )
-                matchesInitial -> ParsedAddress(
-                    cep = loggedUser.cep,
-                    street = loggedUser.street,
-                    number = loggedUser.number,
-                    city = loggedUser.city,
-                    uf = loggedUser.uf
-                )
+            val resolved = when {
+                matchesGps -> ParsedAddress(current.cep, current.street, current.number, current.city, current.uf)
+                matchesInitial -> ParsedAddress(loggedUser.cep, loggedUser.street, loggedUser.number, loggedUser.city, loggedUser.uf)
                 else -> parseAddressText(trimmedAddress)
             }
 
-            val (resolvedLat, resolvedLon) = when {
+            val (lat, lon) = when {
                 matchesGps -> current.latitude to current.longitude
                 matchesInitial -> loggedUser.latitude to loggedUser.longitude
                 else -> locationHelper.forwardGeocode(trimmedAddress) ?: (null to null)
@@ -266,13 +209,13 @@ class EditProfileViewModel(
                 email = current.email,
                 cpf = current.cpf,
                 phone = current.phone,
-                cep = resolvedAddress.cep,
-                street = resolvedAddress.street,
-                number = resolvedAddress.number,
-                city = resolvedAddress.city,
-                uf = resolvedAddress.uf,
-                latitude = resolvedLat,
-                longitude = resolvedLon,
+                cep = resolved.cep,
+                street = resolved.street,
+                number = resolved.number,
+                city = resolved.city,
+                uf = resolved.uf,
+                latitude = lat,
+                longitude = lon,
                 photoPath = current.photoPath,
                 newPassword = current.newPassword.takeIf { it.isNotBlank() }
             ).onSuccess { updatedUser ->
@@ -280,13 +223,7 @@ class EditProfileViewModel(
                 if (!oldPhoto.isNullOrBlank() && oldPhoto != updatedUser.photoPath) {
                     PhotoStorageHelper.deleteLocalPhotos(context, listOf(oldPhoto))
                 }
-                _uiState.update {
-                    it.copy(
-                        isSaving = false,
-                        newPassword = "",
-                        confirmPassword = ""
-                    )
-                }
+                _uiState.update { it.copy(isSaving = false, newPassword = "", confirmPassword = "") }
                 onSuccess()
             }.onFailure { error ->
                 _uiState.update {
@@ -318,9 +255,9 @@ class EditProfileViewModel(
             val filesToDelete = buildList {
                 add(loggedUser.photoPath)
                 add(current.photoPath)
-                ownedPets.forEach { pet ->
-                    add(pet.photoPath)
-                    addAll(pet.additionalPhotoPaths)
+                ownedPets.forEach {
+                    add(it.photoPath)
+                    addAll(it.additionalPhotoPaths)
                 }
             }.distinct()
 
@@ -341,13 +278,9 @@ class EditProfileViewModel(
         }
     }
 
-    fun showFeedbackMessage(message: String) {
-        _uiState.update { it.copy(feedbackMessage = message) }
-    }
+    fun showFeedbackMessage(message: String) = _uiState.update { it.copy(feedbackMessage = message) }
 
-    fun clearFeedbackMessage() {
-        _uiState.update { it.copy(feedbackMessage = null) }
-    }
+    fun clearFeedbackMessage() = _uiState.update { it.copy(feedbackMessage = null) }
 
     internal data class ParsedAddress(
         val cep: String,
@@ -357,165 +290,61 @@ class EditProfileViewModel(
         val uf: String
     )
 
-    internal data class ValidationResult(
-        val fullNameError: String? = null,
-        val emailError: String? = null,
-        val cpfError: String? = null,
-        val phoneError: String? = null,
-        val addressError: String? = null,
-        val newPasswordError: String? = null,
-        val confirmPasswordError: String? = null
-    ) {
-        val hasErrors: Boolean
-            get() = listOf(
-                fullNameError,
-                emailError,
-                cpfError,
-                phoneError,
-                addressError,
-                newPasswordError,
-                confirmPasswordError
-            ).any { it != null }
-    }
-
     companion object {
-        private val EMAIL_REGEX = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+        const val KEY_FULL_NAME = "fullName"
+        const val KEY_EMAIL = "email"
+        const val KEY_CPF = "cpf"
+        const val KEY_PHONE = "phone"
+        const val KEY_ADDRESS = "address"
+        const val KEY_NEW_PASSWORD = "newPassword"
+        const val KEY_CONFIRM_PASSWORD = "confirmPassword"
+
         private val CEP_REGEX = Regex("(?:\\(?CEP\\s*)?(\\d{5})-?(\\d{3})\\)?", RegexOption.IGNORE_CASE)
-        private val TRAILING_UF_REGEX = Regex("^(.*?)[/,\\-]\\s*([A-Za-z]{2})$")
-        private val STREET_NUMBER_REGEX = Regex("^(.+?),\\s*(\\d+[A-Za-z0-9\\-]*|S/N|s/n)$")
 
-        internal fun validate(state: EditProfileUiState): ValidationResult {
-            val fullNameError = if (state.fullName.trim().length < 3) {
-                "Informe o nome completo."
-            } else {
-                null
+        internal fun validate(state: EditProfileUiState): Map<String, String> = buildMap {
+            if (state.fullName.trim().length < 3) put(KEY_FULL_NAME, "Informe o nome completo.")
+            AuthViewModel.validateEmail(state.email)?.let { put(KEY_EMAIL, it) }
+            if (state.cpf.filter { it.isDigit() }.length != 11) put(KEY_CPF, "O CPF deve conter 11 dígitos.")
+            if (state.phone.filter { it.isDigit() }.length !in 10..11) {
+                put(KEY_PHONE, "Informe o telefone com DDD (10 ou 11 dígitos).")
             }
+            if (state.addressText.trim().length < 3) put(KEY_ADDRESS, "Informe o endereço.")
 
-            val trimmedEmail = state.email.trim()
-            val emailError = when {
-                trimmedEmail.isEmpty() -> "Informe o e-mail."
-                !EMAIL_REGEX.matches(trimmedEmail) -> "E-mail inválido."
-                else -> null
+            val hasPassword = state.newPassword.isNotEmpty() || state.confirmPassword.isNotEmpty()
+            if (hasPassword) {
+                if (state.newPassword.length < 8) {
+                    put(KEY_NEW_PASSWORD, "A nova senha deve ter pelo menos 8 caracteres.")
+                }
+                when {
+                    state.confirmPassword.isEmpty() -> put(KEY_CONFIRM_PASSWORD, "Confirme a nova senha.")
+                    state.newPassword != state.confirmPassword -> put(KEY_CONFIRM_PASSWORD, "As senhas não coincidem.")
+                }
             }
-
-            val cpfDigits = state.cpf.filter { it.isDigit() }
-            val cpfError = if (cpfDigits.length != 11) {
-                "O CPF deve conter 11 dígitos."
-            } else {
-                null
-            }
-
-            val phoneDigits = state.phone.filter { it.isDigit() }
-            val phoneError = if (phoneDigits.length !in 10..11) {
-                "Informe o telefone com DDD (10 ou 11 dígitos)."
-            } else {
-                null
-            }
-
-            val addressError = if (state.addressText.trim().length < 3) {
-                "Informe o endereço."
-            } else {
-                null
-            }
-
-            val hasAnyPasswordInput = state.newPassword.isNotEmpty() || state.confirmPassword.isNotEmpty()
-            val newPasswordError = if (hasAnyPasswordInput && state.newPassword.length < 8) {
-                "A nova senha deve ter pelo menos 8 caracteres."
-            } else {
-                null
-            }
-
-            val confirmPasswordError = when {
-                hasAnyPasswordInput && state.confirmPassword.isEmpty() -> "Confirme a nova senha."
-                hasAnyPasswordInput && state.newPassword != state.confirmPassword -> "As senhas não coincidem."
-                else -> null
-            }
-
-            return ValidationResult(
-                fullNameError = fullNameError,
-                emailError = emailError,
-                cpfError = cpfError,
-                phoneError = phoneError,
-                addressError = addressError,
-                newPasswordError = newPasswordError,
-                confirmPasswordError = confirmPasswordError
-            )
         }
 
         internal fun parseAddressText(raw: String): ParsedAddress {
             val cepMatch = CEP_REGEX.find(raw)
             val cepDigits = cepMatch?.let { "${it.groupValues[1]}${it.groupValues[2]}" }.orEmpty()
-            val withoutCep = CEP_REGEX.replace(raw, "").trim().trimEnd(',', '-', '—', ' ')
+            val clean = CEP_REGEX.replace(raw, "").trim().trimEnd(',', '-', '—', ' ')
 
-            val separator = when {
-                withoutCep.contains(" — ") -> " — "
-                withoutCep.contains(" - ") -> " - "
-                else -> null
+            val parts = clean.split(" — ", " - ", limit = 2)
+            val left = parts[0].trim()
+            val right = parts.getOrNull(1)?.trim().orEmpty()
+
+            val streetParts = left.split(",", limit = 2).map { it.trim() }
+            val street = streetParts[0]
+            val number = streetParts.getOrNull(1).orEmpty()
+
+            val regionParts = right.split(",", "/", "-").map { it.trim() }.filter { it.isNotEmpty() }
+            val last = regionParts.lastOrNull().orEmpty()
+            val uf = if (last.length == 2 && last.all { it.isLetter() }) last.uppercase() else ""
+            val city = when {
+                uf.isNotEmpty() && regionParts.size >= 2 -> regionParts[regionParts.size - 2]
+                uf.isEmpty() -> last
+                else -> ""
             }
 
-            if (separator != null) {
-                val splitIdx = withoutCep.lastIndexOf(separator)
-                val left = withoutCep.substring(0, splitIdx).trim()
-                val right = withoutCep.substring(splitIdx + separator.length).trim()
-
-                val streetMatch = STREET_NUMBER_REGEX.matchEntire(left)
-                val street = streetMatch?.groupValues?.get(1)?.trim() ?: left
-                val number = streetMatch?.groupValues?.get(2)?.trim().orEmpty()
-
-                val (city, uf) = parseCityAndUf(right)
-                return ParsedAddress(
-                    cep = cepDigits,
-                    street = street,
-                    number = number,
-                    city = city,
-                    uf = uf
-                )
-            }
-
-            val streetMatch = STREET_NUMBER_REGEX.matchEntire(withoutCep)
-            return if (streetMatch != null) {
-                ParsedAddress(
-                    cep = cepDigits,
-                    street = streetMatch.groupValues[1].trim(),
-                    number = streetMatch.groupValues[2].trim(),
-                    city = "",
-                    uf = ""
-                )
-            } else {
-                ParsedAddress(
-                    cep = cepDigits,
-                    street = withoutCep,
-                    number = "",
-                    city = "",
-                    uf = ""
-                )
-            }
+            return ParsedAddress(cepDigits, street, number, city, uf)
         }
-
-        private fun parseCityAndUf(regionText: String): Pair<String, String> {
-            val trimmed = regionText.trim()
-            val ufMatch = TRAILING_UF_REGEX.matchEntire(trimmed)
-            if (ufMatch != null) {
-                val beforeUf = ufMatch.groupValues[1].trim()
-                val uf = ufMatch.groupValues[2].uppercase()
-                val city = beforeUf.substringAfterLast(",").trim()
-                return city to uf
-            }
-            val city = trimmed.substringAfterLast(",").trim()
-            return city to ""
-        }
-    }
-}
-
-class EditProfileViewModelFactory(
-    private val authRepository: AuthRepository,
-    private val petRepository: PetRepository
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(EditProfileViewModel::class.java)) {
-            return EditProfileViewModel(authRepository, petRepository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

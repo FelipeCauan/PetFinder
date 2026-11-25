@@ -4,9 +4,6 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * Entidade Room que representa um usuário cadastrado no aplicativo PetFinder.
- */
 @Entity(
     tableName = "users",
     indices = [Index(value = ["email"], unique = true)]
@@ -30,16 +27,9 @@ data class UserEntity(
 ) {
     val formattedAddress: String
         get() {
-            val streetPart = listOf(street, number)
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .joinToString(", ")
-            val cityUfPart = listOf(city.trim(), uf.trim())
-                .filter { it.isNotEmpty() }
-                .joinToString("/")
-            val base = listOf(streetPart, cityUfPart)
-                .filter { it.isNotEmpty() }
-                .joinToString(" - ")
+            val streetPart = listOf(street, number).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
+            val cityUf = listOf(city.trim(), uf.trim()).filter { it.isNotEmpty() }.joinToString("/")
+            val base = listOf(streetPart, cityUf).filter { it.isNotEmpty() }.joinToString(" - ")
             val cepDigits = cep.filter { it.isDigit() }
             return when {
                 base.isNotEmpty() && cepDigits.isNotEmpty() -> "$base (CEP $cepDigits)"
@@ -50,29 +40,13 @@ data class UserEntity(
         }
 
     val shortLocationLabel: String
-        get() {
-            val cityTrim = city.trim()
-            val ufTrim = uf.trim()
-            return when {
-                cityTrim.isNotEmpty() && ufTrim.isNotEmpty() -> "$cityTrim, $ufTrim"
-                cityTrim.isNotEmpty() -> cityTrim
-                ufTrim.isNotEmpty() -> ufTrim
-                street.trim().isNotEmpty() -> street.trim()
-                else -> "Localização não informada"
-            }
-        }
+        get() = listOf(city.trim(), uf.trim()).filter { it.isNotEmpty() }.joinToString(", ")
+            .ifEmpty { street.trim().ifEmpty { "Localização não informada" } }
 
     val editableAddressLine: String
         get() {
-            val streetPart = listOf(street, number)
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
-                .joinToString(", ")
-            val cityUfPart = listOf(city.trim(), uf.trim())
-                .filter { it.isNotEmpty() }
-                .joinToString(", ")
-            return listOf(streetPart, cityUfPart)
-                .filter { it.isNotEmpty() }
-                .joinToString(" — ")
+            val streetPart = listOf(street, number).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
+            val cityUf = listOf(city.trim(), uf.trim()).filter { it.isNotEmpty() }.joinToString(", ")
+            return listOf(streetPart, cityUf).filter { it.isNotEmpty() }.joinToString(" — ")
         }
 }

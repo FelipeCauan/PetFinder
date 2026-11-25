@@ -1,8 +1,5 @@
 package com.example.petfinder.ui.telas
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -45,7 +42,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.petfinder.data.model.AdoptionStatus
@@ -54,7 +50,7 @@ import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
 import com.example.petfinder.ui.components.PetFilterBottomSheet
 import com.example.petfinder.ui.components.PetLocalImage
-import com.example.petfinder.ui.theme.PetFinderTheme
+import com.example.petfinder.ui.components.rememberGpsRequester
 import com.example.petfinder.ui.viewmodel.HomeUiState
 import com.example.petfinder.ui.viewmodel.HomeViewModel
 import com.example.petfinder.ui.viewmodel.PetListItem
@@ -77,17 +73,11 @@ fun TelaInicial(
     val context = LocalContext.current
     val locationHelper = remember(context) { LocationHelper(context) }
 
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            viewModel.refreshLocation(locationHelper)
-        } else {
-            viewModel.showFeedbackMessage("Permissão de localização negada.")
-        }
-    }
+    val requestGps = rememberGpsRequester(
+        locationHelper = locationHelper,
+        onPermissionGranted = { viewModel.refreshLocation(locationHelper) },
+        onPermissionDenied = { viewModel.showFeedbackMessage("Permissão de localização negada.") }
+    )
 
     LaunchedEffect(uiState.feedbackMessage) {
         val message = uiState.feedbackMessage
@@ -104,18 +94,7 @@ fun TelaInicial(
         onSpeciesSelected = viewModel::onSpeciesSelected,
         onApplyAdvancedFilters = viewModel::applyAdvancedFilters,
         onClearAdvancedFilters = viewModel::clearAdvancedFilters,
-        onRefreshLocationClick = {
-            if (locationHelper.hasLocationPermission()) {
-                viewModel.refreshLocation(locationHelper)
-            } else {
-                locationPermissionLauncher.launch(
-                    arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                    )
-                )
-            }
-        },
+        onRefreshLocationClick = requestGps,
         onPetClick = onPetClick,
         onBottomTabSelected = { tab ->
             when (tab) {
@@ -605,25 +584,4 @@ private fun speciesEmoji(species: PetSpecies): String = when (species) {
     PetSpecies.CACHORRO -> "🐶"
     PetSpecies.GATO -> "🐱"
     PetSpecies.OUTRO -> "🐰"
-}
-
-@Preview(showBackground = true)
-@Composable
-fun TelaInicialPreview() {
-    PetFinderTheme {
-        TelaInicialContent(
-            state = HomeUiState(
-                userFirstName = "Marina",
-                userLocationLabel = "Tabuleiro do Norte, CE"
-            ),
-            snackbarHostState = remember { SnackbarHostState() },
-            onSearchQueryChange = {},
-            onSpeciesSelected = {},
-            onApplyAdvancedFilters = { _, _, _, _ -> },
-            onClearAdvancedFilters = {},
-            onRefreshLocationClick = {},
-            onPetClick = {},
-            onBottomTabSelected = {}
-        )
-    }
 }

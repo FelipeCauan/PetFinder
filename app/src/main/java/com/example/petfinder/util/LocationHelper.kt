@@ -29,23 +29,14 @@ data class CapturedAddress(
     val uf: String? = null
 )
 
-/**
- * Helper offline-safe para captura de localização via LocationManager e geocodificação opcional.
- */
 class LocationHelper(context: Context) {
 
     private val appContext = context.applicationContext
 
     fun hasLocationPermission(): Boolean {
-        val fine = ContextCompat.checkSelfPermission(
-            appContext,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val coarse = ContextCompat.checkSelfPermission(
-            appContext,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        return fine || coarse
+        val fine = ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return fine == PackageManager.PERMISSION_GRANTED || coarse == PackageManager.PERMISSION_GRANTED
     }
 
     @SuppressLint("MissingPermission")
@@ -53,17 +44,20 @@ class LocationHelper(context: Context) {
         if (!hasLocationPermission()) {
             return Result.failure(SecurityException("Permissão de localização não concedida."))
         }
-
-        val locationManager =
-            appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-                ?: return Result.failure(IllegalStateException("Serviço de localização indisponível."))
+        val locationManager = appContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return Result.failure(IllegalStateException("Serviço de localização indisponível."))
 
         val location = fetchBestLocation(locationManager)
-            ?: return Result.failure(
-                IllegalStateException("Não foi possível obter a localização. Verifique se o GPS está ativo.")
-            )
+            ?: return Result.failure(IllegalStateException("Não foi possível obter a localização. Verifique se o GPS está ativo."))
 
-        val geocoded = reverseGeocode(location.latitude, location.longitude)
+        val geocoded = queryGeocoder(
+            modernCall = { geocoder, callback -> geocoder.getFromLocation(location.latitude, location.longitude, 1, callback) },
+            legacyCall = { geocoder ->
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocation(location.latitude, location.longitude, 1)
+            }
+        )
+
         return Result.success(
             CapturedAddress(
                 latitude = location.latitude,
@@ -77,6 +71,19 @@ class LocationHelper(context: Context) {
         )
     }
 
+    suspend fun forwardGeocode(addressText: String): Pair<Double, Double>? {
+        val trimmed = addressText.trim()
+        if (trimmed.isBlank()) return null
+        val address = queryGeocoder(
+            modernCall = { geocoder, callback -> geocoder.getFromLocationName(trimmed, 1, callback) },
+            legacyCall = { geocoder ->
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocationName(trimmed, 1)
+            }
+        )
+        return address?.let { it.latitude to it.longitude }
+    }
+
     @SuppressLint("MissingPermission")
     private suspend fun fetchBestLocation(locationManager: LocationManager): Location? {
         val providers = listOf(
@@ -84,107 +91,55 @@ class LocationHelper(context: Context) {
             LocationManager.NETWORK_PROVIDER,
             LocationManager.PASSIVE_PROVIDER
         )
-
-        val activeProvider = providers.firstOrNull { provider ->
-            runCatching { locationManager.isProviderEnabled(provider) }.getOrDefault(false)
+        val activeProvider = providers.firstOrNull {
+            runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false)
         }
-
         if (activeProvider != null && activeProvider != LocationManager.PASSIVE_PROVIDER) {
             val fresh = withTimeoutOrNull(4500L) {
-                requestSingleCurrentLocation(locationManager, activeProvider)
+                suspendCancellableCoroutine { cont ->
+                    val signal = CancellationSignal()
+                    cont.invokeOnCancellation { signal.cancel() }
+                    runCatching {
+                        LocationManagerCompat.getCurrentLocation(
+                            locationManager,
+                            activeProvider,
+                            signal,
+                            ContextCompat.getMainExecutor(appContext)
+                        ) { loc -> if (cont.isActive) cont.resume(loc) }
+                    }.onFailure { if (cont.isActive) cont.resume(null) }
+                }
             }
             if (fresh != null) return fresh
         }
 
         return providers
-            .mapNotNull { provider ->
-                runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull()
-            }
+            .mapNotNull { runCatching { locationManager.getLastKnownLocation(it) }.getOrNull() }
             .maxByOrNull { it.time }
     }
 
-    @SuppressLint("MissingPermission")
-    private suspend fun requestSingleCurrentLocation(
-        locationManager: LocationManager,
-        provider: String
-    ): Location? = suspendCancellableCoroutine { continuation ->
-        val cancellationSignal = CancellationSignal()
-        continuation.invokeOnCancellation { cancellationSignal.cancel() }
+    private suspend fun queryGeocoder(
+        modernCall: (Geocoder, Geocoder.GeocodeListener) -> Unit,
+        legacyCall: (Geocoder) -> List<Address>?
+    ): Address? = withContext(Dispatchers.IO) {
+        if (!Geocoder.isPresent()) return@withContext null
+        val geocoder = Geocoder(appContext, Locale("pt", "BR"))
 
-        runCatching {
-            LocationManagerCompat.getCurrentLocation(
-                locationManager,
-                provider,
-                cancellationSignal,
-                ContextCompat.getMainExecutor(appContext)
-            ) { location ->
-                if (continuation.isActive) {
-                    continuation.resume(location)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            withTimeoutOrNull(2500L) {
+                suspendCancellableCoroutine { cont ->
+                    runCatching {
+                        modernCall(geocoder) { list -> if (cont.isActive) cont.resume(list.firstOrNull()) }
+                    }.onFailure { if (cont.isActive) cont.resume(null) }
                 }
             }
-        }.onFailure {
-            if (continuation.isActive) {
-                continuation.resume(null)
-            }
+        } else {
+            runCatching { legacyCall(geocoder)?.firstOrNull() }.getOrNull()
         }
     }
 
-    private suspend fun reverseGeocode(lat: Double, lng: Double): Address? =
-        withContext(Dispatchers.IO) {
-            if (!Geocoder.isPresent()) return@withContext null
-            val geocoder = Geocoder(appContext, Locale("pt", "BR"))
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                withTimeoutOrNull(2500L) {
-                    suspendCancellableCoroutine { continuation ->
-                        runCatching {
-                            geocoder.getFromLocation(lat, lng, 1) { addresses ->
-                                if (continuation.isActive) {
-                                    continuation.resume(addresses.firstOrNull())
-                                }
-                            }
-                        }.onFailure {
-                            if (continuation.isActive) continuation.resume(null)
-                        }
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                runCatching { geocoder.getFromLocation(lat, lng, 1)?.firstOrNull() }.getOrNull()
-            }
-        }
-
-    suspend fun forwardGeocode(addressText: String): Pair<Double, Double>? =
-        withContext(Dispatchers.IO) {
-            val trimmed = addressText.trim()
-            if (trimmed.isBlank() || !Geocoder.isPresent()) return@withContext null
-            val geocoder = Geocoder(appContext, Locale("pt", "BR"))
-
-            val address: Address? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                withTimeoutOrNull(2500L) {
-                    suspendCancellableCoroutine { continuation ->
-                        runCatching {
-                            geocoder.getFromLocationName(trimmed, 1) { addresses ->
-                                if (continuation.isActive) {
-                                    continuation.resume(addresses.firstOrNull())
-                                }
-                            }
-                        }.onFailure {
-                            if (continuation.isActive) continuation.resume(null)
-                        }
-                    }
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                runCatching { geocoder.getFromLocationName(trimmed, 1)?.firstOrNull() }.getOrNull()
-            }
-
-            address?.let { it.latitude to it.longitude }
-        }
-
     private fun normalizeUf(adminArea: String?): String? {
-        if (adminArea.isNullOrBlank()) return null
-        val trimmed = adminArea.trim()
+        val trimmed = adminArea?.trim().orEmpty()
+        if (trimmed.isEmpty()) return null
         if (trimmed.length == 2) return trimmed.uppercase()
         return BRAZIL_STATE_TO_UF[trimmed.lowercase()]
     }
@@ -192,63 +147,27 @@ class LocationHelper(context: Context) {
     companion object {
         private const val EARTH_RADIUS_KM = 6371.0
 
-        /**
-         * Calcula a distância em quilômetros entre duas coordenadas usando a fórmula de Haversine.
-         */
-        fun calculateDistanceKm(
-            lat1: Double,
-            lon1: Double,
-            lat2: Double,
-            lon2: Double
-        ): Double {
+        fun calculateDistanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
             val dLat = Math.toRadians(lat2 - lat1)
             val dLon = Math.toRadians(lon2 - lon1)
             val a = kotlin.math.sin(dLat / 2) * kotlin.math.sin(dLat / 2) +
                 kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
                 kotlin.math.sin(dLon / 2) * kotlin.math.sin(dLon / 2)
-            val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
-            return EARTH_RADIUS_KM * c
+            return EARTH_RADIUS_KM * 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
         }
 
         private val BRAZIL_STATE_TO_UF = mapOf(
-            "acre" to "AC",
-            "alagoas" to "AL",
-            "amapá" to "AP",
-            "amapa" to "AP",
-            "amazonas" to "AM",
-            "bahia" to "BA",
-            "ceará" to "CE",
-            "ceara" to "CE",
-            "distrito federal" to "DF",
-            "espírito santo" to "ES",
-            "espirito santo" to "ES",
-            "goiás" to "GO",
-            "goias" to "GO",
-            "maranhão" to "MA",
-            "maranhao" to "MA",
-            "mato grosso" to "MT",
-            "mato grosso do sul" to "MS",
-            "minas gerais" to "MG",
-            "pará" to "PA",
-            "para" to "PA",
-            "paraíba" to "PB",
-            "paraiba" to "PB",
-            "paraná" to "PR",
-            "parana" to "PR",
-            "pernambuco" to "PE",
-            "piauí" to "PI",
-            "piaui" to "PI",
-            "rio de janeiro" to "RJ",
-            "rio grande do norte" to "RN",
-            "rio grande do sul" to "RS",
-            "rondônia" to "RO",
-            "rondonia" to "RO",
-            "roraima" to "RR",
-            "santa catarina" to "SC",
-            "são paulo" to "SP",
-            "sao paulo" to "SP",
-            "sergipe" to "SE",
-            "tocantins" to "TO"
+            "acre" to "AC", "alagoas" to "AL", "amapá" to "AP", "amapa" to "AP",
+            "amazonas" to "AM", "bahia" to "BA", "ceará" to "CE", "ceara" to "CE",
+            "distrito federal" to "DF", "espírito santo" to "ES", "espirito santo" to "ES",
+            "goiás" to "GO", "goias" to "GO", "maranhão" to "MA", "maranhao" to "MA",
+            "mato grosso" to "MT", "mato grosso do sul" to "MS", "minas gerais" to "MG",
+            "pará" to "PA", "para" to "PA", "paraíba" to "PB", "paraiba" to "PB",
+            "paraná" to "PR", "parana" to "PR", "pernambuco" to "PE", "piauí" to "PI",
+            "piaui" to "PI", "rio de janeiro" to "RJ", "rio grande do norte" to "RN",
+            "rio grande do sul" to "RS", "rondônia" to "RO", "rondonia" to "RO",
+            "roraima" to "RR", "santa catarina" to "SC", "são paulo" to "SP",
+            "sao paulo" to "SP", "sergipe" to "SE", "tocantins" to "TO"
         )
     }
 }

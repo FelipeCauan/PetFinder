@@ -22,11 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.rounded.Pets
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -36,29 +33,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.petfinder.data.local.entity.UserEntity
+import com.example.petfinder.ui.components.PetFinderPasswordField
 import com.example.petfinder.ui.components.PetFinderPrimaryButton
 import com.example.petfinder.ui.components.PetFinderTextField
-import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.LoginUiState
 
-/**
- * Tela de Login stateful conectada ao AuthViewModel.
- */
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
@@ -70,11 +59,9 @@ fun LoginScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(authState.feedbackMessage) {
-        val message = authState.feedbackMessage
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearFeedbackMessage()
-        }
+        val message = authState.feedbackMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearFeedbackMessage()
     }
 
     LoginContent(
@@ -91,9 +78,6 @@ fun LoginScreen(
     )
 }
 
-/**
- * Conteúdo stateless da tela de Login (State Hoisting).
- */
 @Composable
 fun LoginContent(
     state: LoginUiState,
@@ -104,8 +88,6 @@ fun LoginContent(
     onNavigateToRegister: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var passwordVisible by remember { mutableStateOf(false) }
-
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -184,69 +166,29 @@ fun LoginContent(
                 label = "E-mail",
                 value = state.email,
                 onValueChange = onEmailChange,
-                placeholder = "mariana.lima@email.com",
+                placeholder = "mariana.costa@email.com",
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Email,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Icon(Icons.Outlined.Email, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
-                errorText = state.emailError,
+                errorText = state.errors[AuthViewModel.KEY_EMAIL],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                )
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            PetFinderTextField(
+            PetFinderPasswordField(
                 label = "Senha",
                 value = state.password,
                 onValueChange = onPasswordChange,
                 placeholder = "••••••••••",
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Lock,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 },
-                trailingIcon = {
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) {
-                                Icons.Outlined.VisibilityOff
-                            } else {
-                                Icons.Outlined.Visibility
-                            },
-                            contentDescription = if (passwordVisible) {
-                                "Ocultar senha"
-                            } else {
-                                "Mostrar senha"
-                            },
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                visualTransformation = if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                errorText = state.passwordError,
+                errorText = state.errors[AuthViewModel.KEY_PASSWORD],
                 enabled = !state.isLoading,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = {
-                        if (!state.isLoading) onSubmit()
-                    }
-                )
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (!state.isLoading) onSubmit() })
             )
 
             Spacer(modifier = Modifier.height(28.dp))
@@ -257,20 +199,5 @@ fun LoginContent(
                 isLoading = state.isLoading
             )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun LoginScreenPreview() {
-    PetFinderTheme {
-        LoginContent(
-            state = LoginUiState(),
-            snackbarHostState = remember { SnackbarHostState() },
-            onEmailChange = {},
-            onPasswordChange = {},
-            onSubmit = {},
-            onNavigateToRegister = {}
-        )
     }
 }

@@ -1,7 +1,6 @@
 package com.example.petfinder.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.petfinder.data.local.SessionManager
 import com.example.petfinder.data.local.dao.UserDao
@@ -18,7 +17,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 
 data class PetDetailUiState(
     val isLoading: Boolean = true,
@@ -32,10 +30,6 @@ data class PetDetailUiState(
     val feedbackMessage: String? = null
 )
 
-/**
- * ViewModel da TelaDetalhesAnimal: observa o pet selecionado, dados do responsável,
- * distância e verifica se o usuário logado é o dono do cadastro.
- */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PetDetailViewModel(
     private val userDao: UserDao,
@@ -55,16 +49,8 @@ class PetDetailViewModel(
     }
 
     private val ownerInfoFlow = petFlow.flatMapLatest { pet ->
-        if (pet == null) {
-            flowOf(null to emptyList<PetEntity>())
-        } else {
-            combine(
-                userDao.observeUserById(pet.ownerId),
-                petRepository.observePetsByOwner(pet.ownerId)
-            ) { owner, ownerPets ->
-                owner to ownerPets
-            }
-        }
+        if (pet == null) flowOf(null to emptyList())
+        else combine(userDao.observeUserById(pet.ownerId), petRepository.observePetsByOwner(pet.ownerId)) { o, p -> o to p }
     }
 
     val uiState: StateFlow<PetDetailUiState> = combine(
@@ -75,38 +61,18 @@ class PetDetailViewModel(
         feedbackState
     ) { pet, (owner, ownerPets), currentUser, tempLocation, feedback ->
         if (pet == null) {
-            PetDetailUiState(
-                isLoading = false,
-                pet = null,
-                feedbackMessage = feedback
-            )
+            PetDetailUiState(isLoading = false, feedbackMessage = feedback)
         } else {
-            val allPhotos = (listOf(pet.photoPath) + pet.additionalPhotoPaths)
-                .filter { it.isNotBlank() }
-
             val refLat = tempLocation?.latitude ?: currentUser?.latitude
             val refLon = tempLocation?.longitude ?: currentUser?.longitude
-
-            val distance = if (
-                refLat != null &&
-                refLon != null &&
-                pet.latitude != null &&
-                pet.longitude != null
-            ) {
-                LocationHelper.calculateDistanceKm(
-                    refLat,
-                    refLon,
-                    pet.latitude,
-                    pet.longitude
-                )
-            } else {
-                null
-            }
+            val distance = if (refLat != null && refLon != null && pet.latitude != null && pet.longitude != null) {
+                LocationHelper.calculateDistanceKm(refLat, refLon, pet.latitude, pet.longitude)
+            } else null
 
             PetDetailUiState(
                 isLoading = false,
                 pet = pet,
-                photoPaths = allPhotos,
+                photoPaths = (listOf(pet.photoPath) + pet.additionalPhotoPaths).filter { it.isNotBlank() },
                 owner = owner,
                 ownerPetsCount = ownerPets.size,
                 ownerAdoptedCount = ownerPets.count { it.status == AdoptionStatus.ADOTADO },
@@ -121,29 +87,7 @@ class PetDetailViewModel(
         initialValue = PetDetailUiState()
     )
 
-    fun loadPet(petId: Long) {
-        selectedPetId.value = petId
-    }
-
-    fun showFeedbackMessage(message: String) {
-        feedbackState.update { message }
-    }
-
-    fun clearFeedbackMessage() {
-        feedbackState.update { null }
-    }
-}
-
-class PetDetailViewModelFactory(
-    private val userDao: UserDao,
-    private val sessionManager: SessionManager,
-    private val petRepository: PetRepository
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(PetDetailViewModel::class.java)) {
-            return PetDetailViewModel(userDao, sessionManager, petRepository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-    }
+    fun loadPet(petId: Long) { selectedPetId.value = petId }
+    fun showFeedbackMessage(message: String) { feedbackState.value = message }
+    fun clearFeedbackMessage() { feedbackState.value = null }
 }

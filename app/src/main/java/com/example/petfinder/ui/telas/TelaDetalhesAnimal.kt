@@ -49,18 +49,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.petfinder.data.local.entity.PetEntity
-import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.data.model.AdoptionStatus
-import com.example.petfinder.data.model.PetSex
-import com.example.petfinder.data.model.PetSize
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.components.formatPhone
-import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.PetDetailUiState
 import com.example.petfinder.ui.viewmodel.PetDetailViewModel
 import java.util.Locale
@@ -582,50 +576,5 @@ private fun computeInitials(fullName: String): String {
         parts.isEmpty() -> "PF"
         parts.size == 1 -> parts.first().take(2).uppercase()
         else -> "${parts.first().first()}${parts.last().first()}".uppercase()
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun TelaDetalheAnimalPreview() {
-    PetFinderTheme {
-        TelaDetalheAnimalContent(
-            state = PetDetailUiState(
-                isLoading = false,
-                pet = PetEntity(
-                    id = 1L,
-                    ownerId = 1L,
-                    name = "Bento",
-                    species = PetSpecies.CACHORRO,
-                    sex = PetSex.MACHO,
-                    photoPath = "",
-                    animalRg = "SP-2291-0457",
-                    breed = "Beagle",
-                    estimatedAge = "9 anos",
-                    description = "Calmo e muito carinhoso. Foi resgatado na rua há dois meses, já está castrado e vacinado.",
-                    address = "Vila Mariana, São Paulo",
-                    size = PetSize.MEDIO,
-                    status = AdoptionStatus.DISPONIVEL
-                ),
-                owner = UserEntity(
-                    id = 1L,
-                    fullName = "Ana Ribeiro",
-                    email = "ana@email.com",
-                    passwordHash = "",
-                    cpf = "12345678901",
-                    cep = "04110000",
-                    street = "Rua Domingos de Morais",
-                    number = "1200",
-                    city = "São Paulo",
-                    uf = "SP"
-                ),
-                ownerAdoptedCount = 6,
-                isOwner = false,
-                distanceKm = 2.3
-            ),
-            snackbarHostState = remember { SnackbarHostState() },
-            onNavigateBack = {},
-            onEditOwnerClick = {}
-        )
     }
 }

@@ -5,7 +5,6 @@ import com.example.petfinder.ui.viewmodel.AgeUnit
 import com.example.petfinder.ui.viewmodel.PetFormUiState
 import com.example.petfinder.ui.viewmodel.PetFormViewModel
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,7 +12,7 @@ class PetFormValidationTest {
 
     @Test
     fun validate_rejectsMissingRequiredFields() {
-        val result = PetFormViewModel.validate(
+        val errors = PetFormViewModel.validate(
             PetFormUiState(
                 photoPaths = emptyList(),
                 name = "",
@@ -21,15 +20,15 @@ class PetFormValidationTest {
             )
         )
 
-        assertTrue(result.hasErrors)
-        assertEquals("Adicione pelo menos 1 foto do animal.", result.photoError)
-        assertEquals("Informe o nome do animal.", result.nameError)
-        assertEquals("Informe a localização do animal.", result.addressError)
+        assertTrue(errors.isNotEmpty())
+        assertEquals("Adicione pelo menos 1 foto do animal.", errors[PetFormViewModel.KEY_PHOTO])
+        assertEquals("Informe o nome do animal.", errors[PetFormViewModel.KEY_NAME])
+        assertEquals("Informe a localização do animal.", errors[PetFormViewModel.KEY_ADDRESS])
     }
 
     @Test
     fun validate_acceptsRequiredFieldsOnlyLeavingOptionalsBlank() {
-        val result = PetFormViewModel.validate(
+        val errors = PetFormViewModel.validate(
             PetFormUiState(
                 photoPaths = listOf("/data/user/0/com.example.petfinder/files/pet_photos/thor.jpg"),
                 name = "Thor",
@@ -39,7 +38,7 @@ class PetFormValidationTest {
             )
         )
 
-        assertFalse(result.hasErrors)
+        assertTrue(errors.isEmpty())
     }
 
     @Test

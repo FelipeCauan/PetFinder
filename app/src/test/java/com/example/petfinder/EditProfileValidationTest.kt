@@ -13,7 +13,7 @@ class EditProfileValidationTest {
 
     @Test
     fun validate_acceptsValidProfileWithoutPasswordChange() {
-        val result = EditProfileViewModel.validate(
+        val errors = EditProfileViewModel.validate(
             EditProfileUiState(
                 fullName = "Mariana Costa",
                 email = "mariana.costa@email.com",
@@ -25,14 +25,14 @@ class EditProfileValidationTest {
             )
         )
 
-        assertFalse(result.hasErrors)
-        assertNull(result.newPasswordError)
-        assertNull(result.confirmPasswordError)
+        assertFalse(errors.isNotEmpty())
+        assertNull(errors[EditProfileViewModel.KEY_NEW_PASSWORD])
+        assertNull(errors[EditProfileViewModel.KEY_CONFIRM_PASSWORD])
     }
 
     @Test
     fun validate_rejectsInvalidFieldsAndMismatchedPassword() {
-        val result = EditProfileViewModel.validate(
+        val errors = EditProfileViewModel.validate(
             EditProfileUiState(
                 fullName = "Ma",
                 email = "email-invalido",
@@ -44,19 +44,19 @@ class EditProfileValidationTest {
             )
         )
 
-        assertTrue(result.hasErrors)
-        assertEquals("Informe o nome completo.", result.fullNameError)
-        assertEquals("E-mail inválido.", result.emailError)
-        assertEquals("O CPF deve conter 11 dígitos.", result.cpfError)
-        assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", result.phoneError)
-        assertEquals("Informe o endereço.", result.addressError)
-        assertEquals("A nova senha deve ter pelo menos 8 caracteres.", result.newPasswordError)
-        assertEquals("As senhas não coincidem.", result.confirmPasswordError)
+        assertTrue(errors.isNotEmpty())
+        assertEquals("Informe o nome completo.", errors[EditProfileViewModel.KEY_FULL_NAME])
+        assertEquals("E-mail inválido.", errors[EditProfileViewModel.KEY_EMAIL])
+        assertEquals("O CPF deve conter 11 dígitos.", errors[EditProfileViewModel.KEY_CPF])
+        assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", errors[EditProfileViewModel.KEY_PHONE])
+        assertEquals("Informe o endereço.", errors[EditProfileViewModel.KEY_ADDRESS])
+        assertEquals("A nova senha deve ter pelo menos 8 caracteres.", errors[EditProfileViewModel.KEY_NEW_PASSWORD])
+        assertEquals("As senhas não coincidem.", errors[EditProfileViewModel.KEY_CONFIRM_PASSWORD])
     }
 
     @Test
     fun validate_acceptsMatchingNewPassword() {
-        val result = EditProfileViewModel.validate(
+        val errors = EditProfileViewModel.validate(
             EditProfileUiState(
                 fullName = "Mariana Costa",
                 email = "mariana.costa@email.com",
@@ -68,7 +68,7 @@ class EditProfileValidationTest {
             )
         )
 
-        assertFalse(result.hasErrors)
+        assertFalse(errors.isNotEmpty())
     }
 
     @Test

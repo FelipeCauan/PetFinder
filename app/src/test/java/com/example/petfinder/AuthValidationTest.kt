@@ -5,7 +5,6 @@ import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.LoginUiState
 import com.example.petfinder.ui.viewmodel.RegisterUiState
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,21 +25,21 @@ class AuthValidationTest {
 
     @Test
     fun validateLogin_rejectsInvalidEmailAndShortPassword() {
-        val result = AuthViewModel.validateLogin(
+        val errors = AuthViewModel.validateLogin(
             LoginUiState(
                 email = "invalido",
                 password = "123"
             )
         )
 
-        assertTrue(result.hasErrors)
-        assertEquals("E-mail inválido.", result.emailError)
-        assertEquals("A senha deve ter pelo menos 8 caracteres.", result.passwordError)
+        assertTrue(errors.isNotEmpty())
+        assertEquals("E-mail inválido.", errors[AuthViewModel.KEY_EMAIL])
+        assertEquals("A senha deve ter pelo menos 8 caracteres.", errors[AuthViewModel.KEY_PASSWORD])
     }
 
     @Test
     fun validateRegister_acceptsValidInputs() {
-        val result = AuthViewModel.validateRegister(
+        val errors = AuthViewModel.validateRegister(
             RegisterUiState(
                 fullName = "Mariana Costa",
                 email = "mariana.costa@email.com",
@@ -56,12 +55,12 @@ class AuthValidationTest {
             )
         )
 
-        assertFalse(result.hasErrors)
+        assertTrue(errors.isEmpty())
     }
 
     @Test
     fun validateRegister_rejectsMissingFieldsAndUnacceptedTerms() {
-        val result = AuthViewModel.validateRegister(
+        val errors = AuthViewModel.validateRegister(
             RegisterUiState(
                 fullName = "",
                 email = "mariana@email.com",
@@ -77,19 +76,19 @@ class AuthValidationTest {
             )
         )
 
-        assertTrue(result.hasErrors)
-        assertEquals("Informe o nome completo.", result.fullNameError)
-        assertEquals("O CPF deve conter 11 dígitos.", result.cpfError)
-        assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", result.phoneError)
-        assertEquals("Mínimo de 8 caracteres.", result.passwordError)
-        assertEquals("CEP inválido.", result.cepError)
-        assertEquals("Informe a rua.", result.streetError)
-        assertEquals("Informe o N°.", result.numberError)
-        assertEquals("Informe a cidade.", result.cityError)
-        assertEquals("UF.", result.ufError)
+        assertTrue(errors.isNotEmpty())
+        assertEquals("Informe o nome completo.", errors[AuthViewModel.KEY_FULL_NAME])
+        assertEquals("O CPF deve conter 11 dígitos.", errors[AuthViewModel.KEY_CPF])
+        assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", errors[AuthViewModel.KEY_PHONE])
+        assertEquals("Mínimo de 8 caracteres.", errors[AuthViewModel.KEY_PASSWORD])
+        assertEquals("CEP inválido.", errors[AuthViewModel.KEY_CEP])
+        assertEquals("Informe a rua.", errors[AuthViewModel.KEY_STREET])
+        assertEquals("Informe o N°.", errors[AuthViewModel.KEY_NUMBER])
+        assertEquals("Informe a cidade.", errors[AuthViewModel.KEY_CITY])
+        assertEquals("UF.", errors[AuthViewModel.KEY_UF])
         assertEquals(
             "Você precisa aceitar os Termos de uso e a Política de privacidade.",
-            result.termsError
+            errors[AuthViewModel.KEY_TERMS]
         )
     }
 }
