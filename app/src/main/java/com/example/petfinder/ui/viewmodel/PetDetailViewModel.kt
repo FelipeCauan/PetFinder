@@ -71,8 +71,9 @@ class PetDetailViewModel(
         petFlow,
         ownerInfoFlow,
         currentUserFlow,
+        sessionManager.temporaryLocation,
         feedbackState
-    ) { pet, (owner, ownerPets), currentUser, feedback ->
+    ) { pet, (owner, ownerPets), currentUser, tempLocation, feedback ->
         if (pet == null) {
             PetDetailUiState(
                 isLoading = false,
@@ -83,15 +84,18 @@ class PetDetailViewModel(
             val allPhotos = (listOf(pet.photoPath) + pet.additionalPhotoPaths)
                 .filter { it.isNotBlank() }
 
+            val refLat = tempLocation?.latitude ?: currentUser?.latitude
+            val refLon = tempLocation?.longitude ?: currentUser?.longitude
+
             val distance = if (
-                currentUser?.latitude != null &&
-                currentUser.longitude != null &&
+                refLat != null &&
+                refLon != null &&
                 pet.latitude != null &&
                 pet.longitude != null
             ) {
                 LocationHelper.calculateDistanceKm(
-                    currentUser.latitude,
-                    currentUser.longitude,
+                    refLat,
+                    refLon,
                     pet.latitude,
                     pet.longitude
                 )

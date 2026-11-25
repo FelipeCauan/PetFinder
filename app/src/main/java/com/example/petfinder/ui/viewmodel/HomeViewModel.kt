@@ -52,8 +52,6 @@ private data class HomeFilterState(
     val selectedSize: PetSize? = null,
     val selectedStatus: AdoptionStatus? = null,
     val maxDistanceKm: Double? = null,
-    val gpsLat: Double? = null,
-    val gpsLon: Double? = null,
     val gpsLocationLabel: String? = null,
     val isRefreshingLocation: Boolean = false,
     val feedbackMessage: String? = null
@@ -78,8 +76,9 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = combine(
         currentUserFlow,
         petRepository.observeAllPets(),
-        filterState
-    ) { user, allPets, filters ->
+        filterState,
+        sessionManager.temporaryLocation
+    ) { user, allPets, filters, tempLocation ->
         val firstName = user?.fullName
             ?.trim()
             ?.substringBefore(" ")
@@ -89,8 +88,8 @@ class HomeViewModel(
         val userCityUf = user?.shortLocationLabel
         val locationLabel = filters.gpsLocationLabel ?: userCityUf ?: "Localização não informada"
 
-        val refLat = filters.gpsLat ?: user?.latitude
-        val refLon = filters.gpsLon ?: user?.longitude
+        val refLat = tempLocation?.latitude ?: user?.latitude
+        val refLon = tempLocation?.longitude ?: user?.longitude
 
         val filteredPets = filterAndSortPets(
             allPets = allPets,
@@ -176,10 +175,9 @@ class HomeViewModel(
                     val label = listOfNotNull(captured.city, captured.uf)
                         .takeIf { it.isNotEmpty() }
                         ?.joinToString(", ")
+                    sessionManager.setTemporaryLocation(captured.latitude, captured.longitude)
                     filterState.update {
                         it.copy(
-                            gpsLat = captured.latitude,
-                            gpsLon = captured.longitude,
                             gpsLocationLabel = label ?: it.gpsLocationLabel,
                             isRefreshingLocation = false,
                             feedbackMessage = "Localização GPS atualizada."
@@ -207,6 +205,7 @@ class HomeViewModel(
 
     fun resetState() {
         filterState.value = HomeFilterState()
+        sessionManager.clearTemporaryLocation()
     }
 
     companion object {
