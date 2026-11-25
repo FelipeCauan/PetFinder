@@ -31,7 +31,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,12 +65,13 @@ import com.example.petfinder.ui.components.PetLocationSection
 import com.example.petfinder.ui.components.PetPhotosSection
 import com.example.petfinder.ui.components.PetSegmentedSelector
 import com.example.petfinder.ui.components.PhotoSourceDialog
+import com.example.petfinder.ui.components.rememberFeedbackSnackbar
 import com.example.petfinder.ui.components.rememberGpsRequester
 import com.example.petfinder.ui.components.rememberPhotoPickerActions
-import com.example.petfinder.ui.viewmodel.PetFormUiState
 import com.example.petfinder.ui.viewmodel.PetFormViewModel
 import com.example.petfinder.util.LocationHelper
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaCadastroAnimal(
     viewModel: PetFormViewModel,
@@ -82,8 +82,11 @@ fun TelaCadastroAnimal(
     onSessionExpired: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = rememberFeedbackSnackbar(
+        message = state.feedbackMessage,
+        onConsumed = viewModel::clearFeedbackMessage
+    )
     val context = LocalContext.current
     val locationHelper = remember(context) { LocationHelper(context) }
 
@@ -103,77 +106,6 @@ fun TelaCadastroAnimal(
         }
     }
 
-    LaunchedEffect(uiState.feedbackMessage) {
-        val message = uiState.feedbackMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
-        viewModel.clearFeedbackMessage()
-    }
-
-    TelaCadastroAnimalContent(
-        state = uiState,
-        snackbarHostState = snackbarHostState,
-        onNavigateBack = onNavigateBack,
-        onPickFromGallery = photoActions.pickFromGallery,
-        onTakePhoto = photoActions.takePhoto,
-        onRemovePhotoAt = viewModel::removePhotoAt,
-        onStatusSelected = viewModel::onStatusSelected,
-        onNameChange = viewModel::onNameChange,
-        onSpeciesSelected = viewModel::onSpeciesSelected,
-        onSexSelected = viewModel::onSexSelected,
-        onSizeSelected = viewModel::onSizeSelected,
-        onBreedOptionSelected = viewModel::onBreedOptionSelected,
-        onCustomBreedChange = viewModel::onCustomBreedChange,
-        onEstimatedAgeChange = viewModel::onEstimatedAgeChange,
-        onToggleAgeUnit = viewModel::onToggleAgeUnit,
-        onAnimalRgChange = viewModel::onAnimalRgChange,
-        onDescriptionChange = viewModel::onDescriptionChange,
-        onAddressChange = viewModel::onAddressChange,
-        onUseCurrentLocationClick = requestGps,
-        onSubmit = {
-            viewModel.submit(
-                context = context,
-                locationHelper = locationHelper,
-                onSuccess = onSuccess,
-                onSessionExpired = onSessionExpired
-            )
-        },
-        onConfirmDelete = {
-            viewModel.deletePet(
-                context = context,
-                onDeleted = onDeleted,
-                onSessionExpired = onSessionExpired
-            )
-        },
-        modifier = modifier
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TelaCadastroAnimalContent(
-    state: PetFormUiState,
-    snackbarHostState: SnackbarHostState,
-    onNavigateBack: () -> Unit,
-    onPickFromGallery: () -> Unit,
-    onTakePhoto: () -> Unit,
-    onRemovePhotoAt: (Int) -> Unit,
-    onStatusSelected: (AdoptionStatus) -> Unit,
-    onNameChange: (String) -> Unit,
-    onSpeciesSelected: (PetSpecies) -> Unit,
-    onSexSelected: (PetSex) -> Unit,
-    onSizeSelected: (PetSize) -> Unit,
-    onBreedOptionSelected: (String) -> Unit,
-    onCustomBreedChange: (String) -> Unit,
-    onEstimatedAgeChange: (String) -> Unit,
-    onToggleAgeUnit: () -> Unit,
-    onAnimalRgChange: (String) -> Unit,
-    onDescriptionChange: (String) -> Unit,
-    onAddressChange: (String) -> Unit,
-    onUseCurrentLocationClick: () -> Unit,
-    onSubmit: () -> Unit,
-    onConfirmDelete: () -> Unit,
-    modifier: Modifier = Modifier
-) {
     var showPhotoSourceDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -181,8 +113,8 @@ fun TelaCadastroAnimalContent(
         PhotoSourceDialog(
             title = "Adicionar foto",
             onDismiss = { showPhotoSourceDialog = false },
-            onTakePhoto = onTakePhoto,
-            onPickFromGallery = onPickFromGallery
+            onTakePhoto = photoActions.takePhoto,
+            onPickFromGallery = photoActions.pickFromGallery
         )
     }
 
@@ -197,7 +129,11 @@ fun TelaCadastroAnimalContent(
                     enabled = !state.isDeleting,
                     onClick = {
                         showDeleteDialog = false
-                        onConfirmDelete()
+                        viewModel.deletePet(
+                            context = context,
+                            onDeleted = onDeleted,
+                            onSessionExpired = onSessionExpired
+                        )
                     }
                 ) {
                     Text("Excluir", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
@@ -247,7 +183,14 @@ fun TelaCadastroAnimalContent(
                         ) {
                             PetFinderPrimaryButton(
                                 text = if (state.isEditMode) "Salvar alterações" else "Publicar para adoção",
-                                onClick = onSubmit,
+                                onClick = {
+                                    viewModel.submit(
+                                        context = context,
+                                        locationHelper = locationHelper,
+                                        onSuccess = onSuccess,
+                                        onSessionExpired = onSessionExpired
+                                    )
+                                },
                                 isLoading = state.isLoading,
                                 enabled = !state.isBusy
                             )
@@ -281,7 +224,7 @@ fun TelaCadastroAnimalContent(
             PetPhotosSection(
                 photoPaths = state.photoPaths,
                 onAddPhotoClick = { showPhotoSourceDialog = true },
-                onRemovePhotoAt = onRemovePhotoAt,
+                onRemovePhotoAt = viewModel::removePhotoAt,
                 errorText = state.errors[PetFormViewModel.KEY_PHOTO],
                 enabled = !state.isBusy
             )
@@ -293,7 +236,7 @@ fun TelaCadastroAnimalContent(
                         options = AdoptionStatus.entries,
                         selectedOption = state.status,
                         optionLabel = { it.label },
-                        onOptionSelected = onStatusSelected,
+                        onOptionSelected = viewModel::onStatusSelected,
                         enabled = !state.isBusy
                     )
                     Text(
@@ -308,7 +251,7 @@ fun TelaCadastroAnimalContent(
                 label = "Nome",
                 isRequired = true,
                 value = state.name,
-                onValueChange = onNameChange,
+                onValueChange = viewModel::onNameChange,
                 placeholder = "Thor",
                 errorText = state.errors[PetFormViewModel.KEY_NAME],
                 enabled = !state.isBusy,
@@ -326,7 +269,7 @@ fun TelaCadastroAnimalContent(
                         PetSpecies.OUTRO -> "Outro"
                     }
                 },
-                onOptionSelected = onSpeciesSelected,
+                onOptionSelected = viewModel::onSpeciesSelected,
                 enabled = !state.isBusy
             )
 
@@ -335,7 +278,7 @@ fun TelaCadastroAnimalContent(
                 options = PetSex.entries,
                 selectedOption = state.sex,
                 optionLabel = { it.label },
-                onOptionSelected = onSexSelected,
+                onOptionSelected = viewModel::onSexSelected,
                 enabled = !state.isBusy
             )
 
@@ -344,19 +287,19 @@ fun TelaCadastroAnimalContent(
                 options = PetSize.entries,
                 selectedOption = state.size,
                 optionLabel = { it.label },
-                onOptionSelected = onSizeSelected,
+                onOptionSelected = viewModel::onSizeSelected,
                 enabled = !state.isBusy
             )
 
             PetAdditionalInfoSection(
                 state = state,
                 enabled = !state.isBusy,
-                onBreedOptionSelected = onBreedOptionSelected,
-                onCustomBreedChange = onCustomBreedChange,
-                onEstimatedAgeChange = onEstimatedAgeChange,
-                onToggleAgeUnit = onToggleAgeUnit,
-                onAnimalRgChange = onAnimalRgChange,
-                onDescriptionChange = onDescriptionChange
+                onBreedOptionSelected = viewModel::onBreedOptionSelected,
+                onCustomBreedChange = viewModel::onCustomBreedChange,
+                onEstimatedAgeChange = viewModel::onEstimatedAgeChange,
+                onToggleAgeUnit = viewModel::onToggleAgeUnit,
+                onAnimalRgChange = viewModel::onAnimalRgChange,
+                onDescriptionChange = viewModel::onDescriptionChange
             )
 
             PetLocationSection(
@@ -364,8 +307,8 @@ fun TelaCadastroAnimalContent(
                 addressError = state.errors[PetFormViewModel.KEY_ADDRESS],
                 isFetchingLocation = state.isFetchingLocation,
                 enabled = !state.isBusy,
-                onAddressChange = onAddressChange,
-                onUseCurrentLocationClick = onUseCurrentLocationClick,
+                onAddressChange = viewModel::onAddressChange,
+                onUseCurrentLocationClick = requestGps,
                 showPrivacyHint = !state.isEditMode
             )
 

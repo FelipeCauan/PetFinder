@@ -10,7 +10,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.petfinder.data.local.PetFinderDatabase
 import com.example.petfinder.data.local.SessionManager
 import com.example.petfinder.data.repository.AuthRepository
-import com.example.petfinder.data.repository.PetRepository
 import com.example.petfinder.ui.navigation.PetFinderNavGraph
 import com.example.petfinder.ui.navigation.PetFinderRoutes
 import com.example.petfinder.ui.theme.PetFinderTheme
@@ -35,8 +34,8 @@ class MainActivity : ComponentActivity() {
         val database = PetFinderDatabase.getInstance(applicationContext)
         val sessionManager = SessionManager(applicationContext)
         val userDao = database.userDao()
+        val petDao = database.petDao()
         val authRepository = AuthRepository(userDao, sessionManager)
-        val petRepository = PetRepository(database.petDao())
 
         val hasValidSession = runBlocking(Dispatchers.IO) { authRepository.getLoggedInUser() != null }
         val startDestination = if (hasValidSession) PetFinderRoutes.HOME else PetFinderRoutes.LOGIN
@@ -47,19 +46,19 @@ class MainActivity : ComponentActivity() {
                     factory = simpleViewModelFactory { AuthViewModel(authRepository) }
                 )
                 val homeViewModel: HomeViewModel = viewModel(
-                    factory = simpleViewModelFactory { HomeViewModel(userDao, sessionManager, petRepository) }
+                    factory = simpleViewModelFactory { HomeViewModel(authRepository, sessionManager, petDao) }
                 )
                 val profileViewModel: ProfileViewModel = viewModel(
-                    factory = simpleViewModelFactory { ProfileViewModel(userDao, sessionManager, authRepository, petRepository) }
+                    factory = simpleViewModelFactory { ProfileViewModel(authRepository, petDao) }
                 )
                 val editProfileViewModel: EditProfileViewModel = viewModel(
-                    factory = simpleViewModelFactory { EditProfileViewModel(authRepository, petRepository) }
+                    factory = simpleViewModelFactory { EditProfileViewModel(authRepository, petDao) }
                 )
                 val petFormViewModel: PetFormViewModel = viewModel(
-                    factory = simpleViewModelFactory { PetFormViewModel(authRepository, petRepository) }
+                    factory = simpleViewModelFactory { PetFormViewModel(authRepository, petDao) }
                 )
                 val petDetailViewModel: PetDetailViewModel = viewModel(
-                    factory = simpleViewModelFactory { PetDetailViewModel(userDao, sessionManager, petRepository) }
+                    factory = simpleViewModelFactory { PetDetailViewModel(authRepository, userDao, sessionManager, petDao) }
                 )
 
                 PetFinderNavGraph(

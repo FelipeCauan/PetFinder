@@ -4,7 +4,6 @@ import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.ui.viewmodel.EditProfileUiState
 import com.example.petfinder.ui.viewmodel.EditProfileViewModel
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -19,13 +18,17 @@ class EditProfileValidationTest {
                 email = "mariana.costa@email.com",
                 cpf = "12345678900",
                 phone = "85999998888",
-                addressText = "R. Vergueiro, 3185 — Vila Mariana, São Paulo, SP",
+                cep = "04101300",
+                street = "R. Vergueiro",
+                number = "3185",
+                city = "São Paulo",
+                uf = "SP",
                 newPassword = "",
                 confirmPassword = ""
             )
         )
 
-        assertFalse(errors.isNotEmpty())
+        assertTrue(errors.isEmpty())
         assertNull(errors[EditProfileViewModel.KEY_NEW_PASSWORD])
         assertNull(errors[EditProfileViewModel.KEY_CONFIRM_PASSWORD])
     }
@@ -38,7 +41,11 @@ class EditProfileValidationTest {
                 email = "email-invalido",
                 cpf = "12345",
                 phone = "123",
-                addressText = "ab",
+                cep = "123",
+                street = "",
+                number = "",
+                city = "",
+                uf = "S",
                 newPassword = "123",
                 confirmPassword = "456"
             )
@@ -49,7 +56,11 @@ class EditProfileValidationTest {
         assertEquals("E-mail inválido.", errors[EditProfileViewModel.KEY_EMAIL])
         assertEquals("O CPF deve conter 11 dígitos.", errors[EditProfileViewModel.KEY_CPF])
         assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", errors[EditProfileViewModel.KEY_PHONE])
-        assertEquals("Informe o endereço.", errors[EditProfileViewModel.KEY_ADDRESS])
+        assertEquals("CEP inválido.", errors[EditProfileViewModel.KEY_CEP])
+        assertEquals("Informe a rua.", errors[EditProfileViewModel.KEY_STREET])
+        assertEquals("Informe o N°.", errors[EditProfileViewModel.KEY_NUMBER])
+        assertEquals("Informe a cidade.", errors[EditProfileViewModel.KEY_CITY])
+        assertEquals("UF.", errors[EditProfileViewModel.KEY_UF])
         assertEquals("A nova senha deve ter pelo menos 8 caracteres.", errors[EditProfileViewModel.KEY_NEW_PASSWORD])
         assertEquals("As senhas não coincidem.", errors[EditProfileViewModel.KEY_CONFIRM_PASSWORD])
     }
@@ -62,43 +73,35 @@ class EditProfileValidationTest {
                 email = "mariana.costa@email.com",
                 cpf = "12345678900",
                 phone = "11988887777",
-                addressText = "Rua das Flores, 100 — Campinas, SP",
+                cep = "13010100",
+                street = "Rua das Flores",
+                number = "100",
+                city = "Campinas",
+                uf = "SP",
                 newPassword = "novaSenha123",
                 confirmPassword = "novaSenha123"
             )
         )
 
-        assertFalse(errors.isNotEmpty())
+        assertTrue(errors.isEmpty())
     }
 
     @Test
-    fun parseAddressText_extractsStreetNumberCityUfAndCep() {
-        val parsed = EditProfileViewModel.parseAddressText(
-            "R. Vergueiro, 3185 — Vila Mariana, São Paulo/SP (CEP 04101-300)"
-        )
-
-        assertEquals("R. Vergueiro", parsed.street)
-        assertEquals("3185", parsed.number)
-        assertEquals("São Paulo", parsed.city)
-        assertEquals("SP", parsed.uf)
-        assertEquals("04101300", parsed.cep)
-    }
-
-    @Test
-    fun userEntity_shortLocationLabelAndFormattedAddressHandlePartialFields() {
-        val freeFormUser = UserEntity(
+    fun userEntity_formatsAddressAndShortLabel() {
+        val user = UserEntity(
             fullName = "Mariana Costa",
             email = "mariana@email.com",
             passwordHash = "hash",
             cpf = "12345678900",
-            cep = "",
-            street = "Vila Mariana, São Paulo",
-            number = "",
-            city = "",
-            uf = ""
+            phone = "85999998888",
+            cep = "04101300",
+            street = "R. Vergueiro",
+            number = "3185",
+            city = "São Paulo",
+            uf = "SP"
         )
 
-        assertEquals("Vila Mariana, São Paulo", freeFormUser.shortLocationLabel)
-        assertEquals("Vila Mariana, São Paulo", freeFormUser.formattedAddress)
+        assertEquals("R. Vergueiro, 3185 - São Paulo/SP (CEP 04101300)", user.formattedAddress)
+        assertEquals("São Paulo, SP", user.shortLocationLabel)
     }
 }

@@ -27,13 +27,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,8 +42,8 @@ import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.ui.components.PetFinderPasswordField
 import com.example.petfinder.ui.components.PetFinderPrimaryButton
 import com.example.petfinder.ui.components.PetFinderTextField
+import com.example.petfinder.ui.components.rememberFeedbackSnackbar
 import com.example.petfinder.ui.viewmodel.AuthViewModel
-import com.example.petfinder.ui.viewmodel.LoginUiState
 
 @Composable
 fun LoginScreen(
@@ -56,38 +53,12 @@ fun LoginScreen(
     modifier: Modifier = Modifier
 ) {
     val authState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(authState.feedbackMessage) {
-        val message = authState.feedbackMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
-        viewModel.clearFeedbackMessage()
-    }
-
-    LoginContent(
-        state = authState.login,
-        snackbarHostState = snackbarHostState,
-        onEmailChange = viewModel::onLoginEmailChange,
-        onPasswordChange = viewModel::onLoginPasswordChange,
-        onSubmit = { viewModel.submitLogin(onLoginSuccess) },
-        onNavigateToRegister = {
-            viewModel.clearErrors()
-            onNavigateToRegister()
-        },
-        modifier = modifier
+    val state = authState.login
+    val snackbarHostState = rememberFeedbackSnackbar(
+        message = authState.feedbackMessage,
+        onConsumed = viewModel::clearFeedbackMessage
     )
-}
 
-@Composable
-fun LoginContent(
-    state: LoginUiState,
-    snackbarHostState: SnackbarHostState,
-    onEmailChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onSubmit: () -> Unit,
-    onNavigateToRegister: () -> Unit,
-    modifier: Modifier = Modifier
-) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -113,7 +84,10 @@ fun LoginContent(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !state.isLoading, onClick = onNavigateToRegister)
+                        .clickable(enabled = !state.isLoading) {
+                            viewModel.clearErrors()
+                            onNavigateToRegister()
+                        }
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
@@ -165,7 +139,7 @@ fun LoginContent(
             PetFinderTextField(
                 label = "E-mail",
                 value = state.email,
-                onValueChange = onEmailChange,
+                onValueChange = viewModel::onLoginEmailChange,
                 placeholder = "mariana.costa@email.com",
                 leadingIcon = {
                     Icon(Icons.Outlined.Email, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -180,7 +154,7 @@ fun LoginContent(
             PetFinderPasswordField(
                 label = "Senha",
                 value = state.password,
-                onValueChange = onPasswordChange,
+                onValueChange = viewModel::onLoginPasswordChange,
                 placeholder = "••••••••••",
                 leadingIcon = {
                     Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -188,14 +162,16 @@ fun LoginContent(
                 errorText = state.errors[AuthViewModel.KEY_PASSWORD],
                 enabled = !state.isLoading,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { if (!state.isLoading) onSubmit() })
+                keyboardActions = KeyboardActions(onDone = {
+                    if (!state.isLoading) viewModel.submitLogin(onLoginSuccess)
+                })
             )
 
             Spacer(modifier = Modifier.height(28.dp))
 
             PetFinderPrimaryButton(
                 text = "Entrar",
-                onClick = onSubmit,
+                onClick = { viewModel.submitLogin(onLoginSuccess) },
                 isLoading = state.isLoading
             )
         }

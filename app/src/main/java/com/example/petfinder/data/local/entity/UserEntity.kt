@@ -42,11 +42,4 @@ data class UserEntity(
     val shortLocationLabel: String
         get() = listOf(city.trim(), uf.trim()).filter { it.isNotEmpty() }.joinToString(", ")
             .ifEmpty { street.trim().ifEmpty { "Localização não informada" } }
-
-    val editableAddressLine: String
-        get() {
-            val streetPart = listOf(street, number).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(", ")
-            val cityUf = listOf(city.trim(), uf.trim()).filter { it.isNotEmpty() }.joinToString(", ")
-            return listOf(streetPart, cityUf).filter { it.isNotEmpty() }.joinToString(" — ")
-        }
 }

@@ -33,7 +33,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,13 +54,10 @@ import com.example.petfinder.data.model.AdoptionStatus
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.components.formatPhone
-import com.example.petfinder.ui.viewmodel.PetDetailUiState
+import com.example.petfinder.ui.components.rememberFeedbackSnackbar
 import com.example.petfinder.ui.viewmodel.PetDetailViewModel
 import java.util.Locale
 
-/**
- * TelaDetalheAnimal stateful conectada ao PetDetailViewModel.
- */
 @Composable
 fun TelaDetalheAnimal(
     petId: Long,
@@ -70,49 +66,24 @@ fun TelaDetalheAnimal(
     onEditPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = rememberFeedbackSnackbar(
+        message = state.feedbackMessage,
+        onConsumed = viewModel::clearFeedbackMessage
+    )
+    val ptBr = remember { Locale.forLanguageTag("pt-BR") }
 
     LaunchedEffect(petId) {
         viewModel.loadPet(petId)
     }
 
-    LaunchedEffect(uiState.feedbackMessage) {
-        val message = uiState.feedbackMessage
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearFeedbackMessage()
-        }
-    }
-
-    TelaDetalheAnimalContent(
-        state = uiState,
-        snackbarHostState = snackbarHostState,
-        onNavigateBack = onNavigateBack,
-        onEditOwnerClick = { onEditPetClick(petId) },
-        modifier = modifier
-    )
-}
-
-/**
- * Conteúdo stateless da TelaDetalheAnimal (State Hoisting).
- */
-@Composable
-fun TelaDetalheAnimalContent(
-    state: PetDetailUiState,
-    snackbarHostState: SnackbarHostState,
-    onNavigateBack: () -> Unit,
-    onEditOwnerClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
     var showAdoptDialog by rememberSaveable { mutableStateOf(false) }
 
     val pet = state.pet
     val owner = state.owner
 
     if (showAdoptDialog && pet != null) {
-        val ownerPhoneDigits = owner?.phone?.filter { it.isDigit() }.orEmpty()
-        val ownerPhoneFormatted = ownerPhoneDigits.takeIf { it.isNotEmpty() }?.let { formatPhone(it) }
+        val ownerPhoneFormatted = owner?.phone?.takeIf { it.isNotBlank() }?.let(::formatPhone)
 
         AlertDialog(
             onDismissRequest = { showAdoptDialog = false },
@@ -127,9 +98,7 @@ fun TelaDetalheAnimalContent(
                     )
                     Text("E-mail: ${owner?.email ?: "Não informado"}")
                     Text("Telefone: ${ownerPhoneFormatted ?: "Não informado"}")
-                    Text(
-                        text = "Cidade: ${owner?.shortLocationLabel ?: pet.address}"
-                    )
+                    Text("Cidade: ${owner?.shortLocationLabel ?: pet.address}")
                 }
             },
             confirmButton = {
@@ -149,11 +118,7 @@ fun TelaDetalheAnimalContent(
                     isOwner = state.isOwner,
                     isAdopted = pet.status == AdoptionStatus.ADOTADO,
                     onClick = {
-                        if (state.isOwner) {
-                            onEditOwnerClick()
-                        } else {
-                            showAdoptDialog = true
-                        }
+                        if (state.isOwner) onEditPetClick(petId) else showAdoptDialog = true
                     }
                 )
             }
@@ -188,9 +153,7 @@ fun TelaDetalheAnimalContent(
                         color = Color(0xFF292431)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    TextButton(onClick = onNavigateBack) {
-                        Text("Voltar")
-                    }
+                    TextButton(onClick = onNavigateBack) { Text("Voltar") }
                 }
             }
             return@Scaffold
@@ -201,17 +164,12 @@ fun TelaDetalheAnimalContent(
             PetSpecies.GATO -> "Gato"
             PetSpecies.OUTRO -> "Outro"
         }
-        val speciesEmoji = when (pet.species) {
-            PetSpecies.CACHORRO -> "🐶"
-            PetSpecies.GATO -> "🐱"
-            PetSpecies.OUTRO -> "🐰"
-        }
         val ageLabel = pet.estimatedAge?.takeIf { it.isNotBlank() } ?: "Não inf."
         val breedLabel = pet.breed?.takeIf { it.isNotBlank() } ?: "SRD (sem raça definida)"
         val locationText = buildString {
             append(pet.address)
             state.distanceKm?.let { km ->
-                append(String.format(Locale("pt", "BR"), " · %.1f km", km))
+                append(String.format(ptBr, " · %.1f km", km))
             }
         }
 
@@ -227,7 +185,6 @@ fun TelaDetalheAnimalContent(
                 .background(Color(0xFFFAF8FC))
                 .padding(bottom = paddingValues.calculateBottomPadding())
         ) {
-            // Área da fotografia
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -239,7 +196,7 @@ fun TelaDetalheAnimalContent(
                     PetLocalImage(
                         photoPath = photos.firstOrNull(),
                         contentDescription = "Foto de ${pet.name}",
-                        fallbackEmoji = speciesEmoji,
+                        fallbackEmoji = pet.species.emoji,
                         fallbackEmojiSize = 110.sp,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -252,7 +209,7 @@ fun TelaDetalheAnimalContent(
                         PetLocalImage(
                             photoPath = photos[page],
                             contentDescription = "Foto ${page + 1} de ${pet.name}",
-                            fallbackEmoji = speciesEmoji,
+                            fallbackEmoji = pet.species.emoji,
                             fallbackEmojiSize = 110.sp,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -273,11 +230,8 @@ fun TelaDetalheAnimalContent(
                                     .size(7.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (pagerState.currentPage == index) {
-                                            Color.White
-                                        } else {
-                                            Color.White.copy(alpha = 0.45f)
-                                        }
+                                        if (pagerState.currentPage == index) Color.White
+                                        else Color.White.copy(alpha = 0.45f)
                                     )
                             )
                         }
@@ -301,21 +255,13 @@ fun TelaDetalheAnimalContent(
                 }
             }
 
-            // Painel de informações
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Color(0xFFFAF8FC),
-                        RoundedCornerShape(
-                            topStart = 28.dp,
-                            topEnd = 28.dp
-                        )
-                    )
+                    .background(Color(0xFFFAF8FC), RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .verticalScroll(rememberScrollState())
                     .padding(24.dp)
             ) {
-                // Nome e status
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -341,39 +287,19 @@ fun TelaDetalheAnimalContent(
                     )
                 }
 
-                Text(
-                    text = breedLabel,
-                    fontSize = 15.sp,
-                    color = Color(0xFF898493)
-                )
+                Text(text = breedLabel, fontSize = 15.sp, color = Color(0xFF898493))
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Localização
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.LocationOn,
-                        contentDescription = null,
-                        tint = Color(0xFF7044B5)
-                    )
-
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.LocationOn, contentDescription = null, tint = Color(0xFF7044B5))
                     Spacer(modifier = Modifier.width(8.dp))
-
-                    Text(
-                        text = locationText,
-                        fontSize = 14.sp,
-                        color = Color(0xFF292431)
-                    )
+                    Text(text = locationText, fontSize = 14.sp, color = Color(0xFF292431))
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Características
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Caracteristica("Espécie", speciesLabel)
                     Caracteristica("Sexo", pet.sex.label)
                     Caracteristica("Porte", pet.size.label)
@@ -382,7 +308,6 @@ fun TelaDetalheAnimalContent(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Descrição
                 Text(
                     text = "Sobre ${pet.name}",
                     fontSize = 17.sp,
@@ -393,29 +318,21 @@ fun TelaDetalheAnimalContent(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = pet.description?.takeIf { it.isNotBlank() }
-                        ?: "Nenhuma descrição adicional informada.",
+                    text = pet.description?.takeIf { it.isNotBlank() } ?: "Nenhuma descrição adicional informada.",
                     fontSize = 15.sp,
                     color = Color(0xFF686174),
                     lineHeight = 23.sp
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
-
                 HorizontalDivider(color = Color(0xFFDDD5E8))
-
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Identificação
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "RG Animal",
-                        color = Color(0xFF898493)
-                    )
-
+                    Text(text = "RG Animal", color = Color(0xFF898493))
                     Text(
                         text = pet.animalRg?.takeIf { it.isNotBlank() } ?: "Não informado",
                         color = Color(0xFF292431)
@@ -423,14 +340,10 @@ fun TelaDetalheAnimalContent(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
                 HorizontalDivider(color = Color(0xFFDDD5E8))
-
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Responsável
                 val ownerName = owner?.fullName ?: "Responsável"
-                val ownerInitials = computeInitials(ownerName)
                 val ownerSummary = if (state.ownerAdoptedCount > 0) {
                     "Responsável · ${state.ownerAdoptedCount} animais doados"
                 } else {
@@ -440,10 +353,7 @@ fun TelaDetalheAnimalContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            Color(0xFFF1EDF8),
-                            RoundedCornerShape(20.dp)
-                        )
+                        .background(Color(0xFFF1EDF8), RoundedCornerShape(20.dp))
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -461,14 +371,11 @@ fun TelaDetalheAnimalContent(
                         Box(
                             modifier = Modifier
                                 .size(52.dp)
-                                .background(
-                                    Color(0xFFE9DDF8),
-                                    CircleShape
-                                ),
+                                .background(Color(0xFFE9DDF8), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = ownerInitials,
+                                text = computeInitials(ownerName),
                                 color = Color(0xFF43266F),
                                 fontWeight = FontWeight.Bold
                             )
@@ -478,17 +385,8 @@ fun TelaDetalheAnimalContent(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column {
-                        Text(
-                            text = ownerName,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF292431)
-                        )
-
-                        Text(
-                            text = ownerSummary,
-                            fontSize = 11.sp,
-                            color = Color(0xFF898493)
-                        )
+                        Text(text = ownerName, fontWeight = FontWeight.Medium, color = Color(0xFF292431))
+                        Text(text = ownerSummary, fontSize = 11.sp, color = Color(0xFF898493))
                     }
                 }
             }
@@ -497,39 +395,25 @@ fun TelaDetalheAnimalContent(
 }
 
 @Composable
-fun RowScope.Caracteristica(
+private fun RowScope.Caracteristica(
     titulo: String,
     valor: String
 ) {
     Column(
         modifier = Modifier
             .weight(1f)
-            .background(
-                Color(0xFFF1EDF8),
-                RoundedCornerShape(22.dp)
-            )
+            .background(Color(0xFFF1EDF8), RoundedCornerShape(22.dp))
             .padding(vertical = 14.dp, horizontal = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = titulo,
-            fontSize = 11.sp,
-            color = Color(0xFF898493)
-        )
-
+        Text(text = titulo, fontSize = 11.sp, color = Color(0xFF898493))
         Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = valor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF292431)
-        )
+        Text(text = valor, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF292431))
     }
 }
 
 @Composable
-fun BarraAdocao(
+private fun BarraAdocao(
     isOwner: Boolean,
     isAdopted: Boolean,
     onClick: () -> Unit
@@ -539,10 +423,7 @@ fun BarraAdocao(
             .fillMaxWidth()
             .background(Color(0xFFFAF8FC))
             .navigationBarsPadding()
-            .padding(
-                horizontal = 20.dp,
-                vertical = 14.dp
-            ),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Button(
@@ -552,9 +433,7 @@ fun BarraAdocao(
                 .fillMaxWidth()
                 .height(54.dp),
             shape = RoundedCornerShape(30.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF7044B5)
-            )
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7044B5))
         ) {
             Text(
                 text = when {

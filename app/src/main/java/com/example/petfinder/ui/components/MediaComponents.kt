@@ -1,6 +1,5 @@
 package com.example.petfinder.ui.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,22 +19,41 @@ import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.petfinder.util.PhotoStorageHelper
+import coil.compose.AsyncImage
+import java.io.File
+
+@Composable
+fun rememberFeedbackSnackbar(
+    message: String?,
+    onConsumed: () -> Unit
+): SnackbarHostState {
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(message) {
+        if (message != null) {
+            snackbarHostState.showSnackbar(message)
+            onConsumed()
+        }
+    }
+    return snackbarHostState
+}
 
 @Composable
 fun PetLocalImage(
@@ -45,17 +63,23 @@ fun PetLocalImage(
     modifier: Modifier = Modifier,
     fallbackEmojiSize: TextUnit = 48.sp
 ) {
-    val bitmap by produceState<ImageBitmap?>(initialValue = null, key1 = photoPath) {
-        value = photoPath?.takeIf { it.isNotBlank() }?.let { PhotoStorageHelper.loadImageBitmap(it) }
+    val file = remember(photoPath) {
+        photoPath?.takeIf { it.isNotBlank() }?.let(::File)?.takeIf(File::exists)
     }
+    var loadFailed by remember(photoPath) { mutableStateOf(false) }
 
     Box(
         modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center
     ) {
-        val loaded = bitmap
-        if (loaded != null) {
-            Image(bitmap = loaded, contentDescription = contentDescription, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        if (file != null && !loadFailed) {
+            AsyncImage(
+                model = file,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                onError = { loadFailed = true },
+                modifier = Modifier.fillMaxSize()
+            )
         } else {
             Text(text = fallbackEmoji, fontSize = fallbackEmojiSize)
         }

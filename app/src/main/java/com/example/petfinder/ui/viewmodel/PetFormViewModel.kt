@@ -3,13 +3,13 @@ package com.example.petfinder.ui.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.petfinder.data.local.dao.PetDao
 import com.example.petfinder.data.local.entity.PetEntity
 import com.example.petfinder.data.model.AdoptionStatus
 import com.example.petfinder.data.model.PetSex
 import com.example.petfinder.data.model.PetSize
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.data.repository.AuthRepository
-import com.example.petfinder.data.repository.PetRepository
 import com.example.petfinder.util.LocationHelper
 import com.example.petfinder.util.PhotoStorageHelper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +65,7 @@ data class PetFormUiState(
 
 class PetFormViewModel(
     private val authRepository: AuthRepository,
-    private val petRepository: PetRepository
+    private val petDao: PetDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PetFormUiState())
@@ -76,7 +76,7 @@ class PetFormViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoadingPet = true, feedbackMessage = null) }
-            val pet = petRepository.getPetById(petId)
+            val pet = petDao.getPetById(petId)
             if (pet == null) {
                 _uiState.value = PetFormUiState()
                 onNotFound()
@@ -116,11 +116,8 @@ class PetFormViewModel(
 
     fun addPhotoPath(path: String) {
         _uiState.update { state ->
-            if (state.photoPaths.size >= PetFormUiState.MAX_PHOTOS || path.isBlank()) {
-                state
-            } else {
-                state.copy(photoPaths = state.photoPaths + path, errors = state.errors - KEY_PHOTO)
-            }
+            if (state.photoPaths.size >= PetFormUiState.MAX_PHOTOS || path.isBlank()) state
+            else state.copy(photoPaths = state.photoPaths + path, errors = state.errors - KEY_PHOTO)
         }
     }
 
@@ -276,7 +273,7 @@ class PetFormViewModel(
             )
 
             runCatching {
-                if (current.isEditMode) petRepository.updatePet(pet) else petRepository.insertPet(pet)
+                if (current.isEditMode) petDao.updatePet(pet) else petDao.insertPet(pet)
             }.onSuccess {
                 if (context != null && current.isEditMode) {
                     val removed = current.originalPhotoPaths.filter { it !in current.photoPaths }
@@ -307,7 +304,7 @@ class PetFormViewModel(
                 return@launch
             }
 
-            runCatching { petRepository.deletePetById(petId) }
+            runCatching { petDao.deletePetById(petId) }
                 .onSuccess {
                     PhotoStorageHelper.deleteLocalPhotos(context, (current.originalPhotoPaths + current.photoPaths).distinct())
                     _uiState.value = PetFormUiState()

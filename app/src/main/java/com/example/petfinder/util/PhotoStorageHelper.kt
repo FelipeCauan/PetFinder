@@ -1,13 +1,7 @@
 package com.example.petfinder.util
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -72,50 +66,8 @@ object PhotoStorageHelper {
         }
     }
 
-    suspend fun loadImageBitmap(path: String, maxDimensionPx: Int = 720): ImageBitmap? =
-        withContext(Dispatchers.IO) {
-            if (path.isBlank() || !File(path).exists()) return@withContext null
-            runCatching {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(path, bounds)
-                var sampleSize = 1
-                while (bounds.outWidth / sampleSize > maxDimensionPx ||
-                    bounds.outHeight / sampleSize > maxDimensionPx
-                ) {
-                    sampleSize *= 2
-                }
-                val bitmap = BitmapFactory.decodeFile(
-                    path,
-                    BitmapFactory.Options().apply { inSampleSize = sampleSize }
-                ) ?: return@withContext null
-                rotateIfNeeded(path, bitmap).asImageBitmap()
-            }.getOrNull()
-        }
-
     private fun newInternalPhotoFile(context: Context, dirName: String, prefix: String): File {
         val dir = File(context.filesDir, dirName).apply { mkdirs() }
         return File(dir, "${prefix}_${UUID.randomUUID()}.jpg")
-    }
-
-    private fun rotateIfNeeded(path: String, bitmap: Bitmap): Bitmap {
-        val orientation = runCatching {
-            ExifInterface(path).getAttributeInt(
-                ExifInterface.TAG_ORIENTATION,
-                ExifInterface.ORIENTATION_NORMAL
-            )
-        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
-
-        val degrees = when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
-            else -> return bitmap
-        }
-        val rotated = Bitmap.createBitmap(
-            bitmap, 0, 0, bitmap.width, bitmap.height,
-            Matrix().apply { postRotate(degrees) }, true
-        )
-        if (rotated != bitmap) bitmap.recycle()
-        return rotated
     }
 }

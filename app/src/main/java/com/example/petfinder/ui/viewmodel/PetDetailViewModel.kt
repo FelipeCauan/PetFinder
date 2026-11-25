@@ -3,11 +3,12 @@ package com.example.petfinder.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.petfinder.data.local.SessionManager
+import com.example.petfinder.data.local.dao.PetDao
 import com.example.petfinder.data.local.dao.UserDao
 import com.example.petfinder.data.local.entity.PetEntity
 import com.example.petfinder.data.local.entity.UserEntity
 import com.example.petfinder.data.model.AdoptionStatus
-import com.example.petfinder.data.repository.PetRepository
+import com.example.petfinder.data.repository.AuthRepository
 import com.example.petfinder.util.LocationHelper
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,31 +33,28 @@ data class PetDetailUiState(
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PetDetailViewModel(
+    authRepository: AuthRepository,
     private val userDao: UserDao,
-    private val sessionManager: SessionManager,
-    private val petRepository: PetRepository
+    sessionManager: SessionManager,
+    private val petDao: PetDao
 ) : ViewModel() {
 
     private val selectedPetId = MutableStateFlow<Long?>(null)
     private val feedbackState = MutableStateFlow<String?>(null)
 
-    private val currentUserFlow = sessionManager.currentUserId.flatMapLatest { userId ->
-        if (userId == null) flowOf(null) else userDao.observeUserById(userId)
-    }
-
     private val petFlow = selectedPetId.flatMapLatest { petId ->
-        if (petId == null || petId <= 0L) flowOf(null) else petRepository.observePetById(petId)
+        if (petId == null || petId <= 0L) flowOf(null) else petDao.observePetById(petId)
     }
 
     private val ownerInfoFlow = petFlow.flatMapLatest { pet ->
         if (pet == null) flowOf(null to emptyList())
-        else combine(userDao.observeUserById(pet.ownerId), petRepository.observePetsByOwner(pet.ownerId)) { o, p -> o to p }
+        else combine(userDao.observeUserById(pet.ownerId), petDao.observePetsByOwner(pet.ownerId)) { o, p -> o to p }
     }
 
     val uiState: StateFlow<PetDetailUiState> = combine(
         petFlow,
         ownerInfoFlow,
-        currentUserFlow,
+        authRepository.observeCurrentUser(),
         sessionManager.temporaryLocation,
         feedbackState
     ) { pet, (owner, ownerPets), currentUser, tempLocation, feedback ->

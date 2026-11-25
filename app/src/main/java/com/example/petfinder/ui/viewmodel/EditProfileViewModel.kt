@@ -3,8 +3,8 @@ package com.example.petfinder.ui.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.petfinder.data.local.dao.PetDao
 import com.example.petfinder.data.repository.AuthRepository
-import com.example.petfinder.data.repository.PetRepository
 import com.example.petfinder.util.LocationHelper
 import com.example.petfinder.util.PhotoStorageHelper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 data class EditProfileUiState(
     val userId: Long? = null,
@@ -22,9 +21,6 @@ data class EditProfileUiState(
     val email: String = "",
     val cpf: String = "",
     val phone: String = "",
-    val addressText: String = "",
-    val initialAddressText: String = "",
-    val gpsAddressText: String? = null,
     val cep: String = "",
     val street: String = "",
     val number: String = "",
@@ -32,6 +28,7 @@ data class EditProfileUiState(
     val uf: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
+    val hasGpsCoordinates: Boolean = false,
     val newPassword: String = "",
     val confirmPassword: String = "",
     val errors: Map<String, String> = emptyMap(),
@@ -46,7 +43,7 @@ data class EditProfileUiState(
 
 class EditProfileViewModel(
     private val authRepository: AuthRepository,
-    private val petRepository: PetRepository
+    private val petDao: PetDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EditProfileUiState())
@@ -61,7 +58,6 @@ class EditProfileViewModel(
                 onSessionExpired()
                 return@launch
             }
-            val initialAddress = user.editableAddressLine
             _uiState.value = EditProfileUiState(
                 userId = user.id,
                 photoPath = user.photoPath,
@@ -70,8 +66,6 @@ class EditProfileViewModel(
                 email = user.email,
                 cpf = user.cpf,
                 phone = user.phone,
-                addressText = initialAddress,
-                initialAddressText = initialAddress,
                 cep = user.cep,
                 street = user.street,
                 number = user.number,
@@ -106,8 +100,24 @@ class EditProfileViewModel(
         it.copy(phone = value.filter { c -> c.isDigit() }.take(11), errors = it.errors - KEY_PHONE)
     }
 
-    fun onAddressChange(value: String) = _uiState.update {
-        it.copy(addressText = value, errors = it.errors - KEY_ADDRESS)
+    fun onCepChange(value: String) = _uiState.update {
+        it.copy(cep = value.filter { c -> c.isDigit() }.take(8), errors = it.errors - KEY_CEP)
+    }
+
+    fun onStreetChange(value: String) = _uiState.update {
+        it.copy(street = value, hasGpsCoordinates = false, errors = it.errors - KEY_STREET)
+    }
+
+    fun onNumberChange(value: String) = _uiState.update {
+        it.copy(number = value, hasGpsCoordinates = false, errors = it.errors - KEY_NUMBER)
+    }
+
+    fun onCityChange(value: String) = _uiState.update {
+        it.copy(city = value, hasGpsCoordinates = false, errors = it.errors - KEY_CITY)
+    }
+
+    fun onUfChange(value: String) = _uiState.update {
+        it.copy(uf = value.filter { c -> c.isLetter() }.take(2).uppercase(), hasGpsCoordinates = false, errors = it.errors - KEY_UF)
     }
 
     fun onNewPasswordChange(value: String) = _uiState.update {
@@ -124,33 +134,19 @@ class EditProfileViewModel(
             locationHelper.getCurrentAddress()
                 .onSuccess { captured ->
                     val current = _uiState.value
-                    val nextStreet = captured.street?.takeIf { it.isNotBlank() } ?: current.street
-                    val nextNumber = captured.number?.takeIf { it.isNotBlank() } ?: ""
-                    val nextCity = captured.city?.takeIf { it.isNotBlank() } ?: current.city
-                    val nextUf = captured.uf?.takeIf { it.length == 2 } ?: current.uf
-                    val nextCep = captured.cep?.takeIf { it.length == 8 } ?: current.cep
-
-                    val streetPart = listOf(nextStreet, nextNumber).filter { it.isNotBlank() }.joinToString(", ")
-                    val cityPart = listOf(nextCity, nextUf).filter { it.isNotBlank() }.joinToString(", ")
-                    val formatted = listOf(streetPart, cityPart)
-                        .filter { it.isNotBlank() }
-                        .joinToString(" — ")
-                        .ifBlank { String.format(Locale.US, "GPS: %.4f, %.4f", captured.latitude, captured.longitude) }
-
                     _uiState.update {
                         it.copy(
-                            addressText = formatted,
-                            gpsAddressText = formatted,
-                            cep = nextCep,
-                            street = nextStreet,
-                            number = nextNumber,
-                            city = nextCity,
-                            uf = nextUf,
+                            cep = captured.cep?.takeIf { c -> c.length == 8 } ?: current.cep,
+                            street = captured.street?.takeIf { s -> s.isNotBlank() } ?: current.street,
+                            number = captured.number?.takeIf { n -> n.isNotBlank() } ?: current.number,
+                            city = captured.city?.takeIf { c -> c.isNotBlank() } ?: current.city,
+                            uf = captured.uf?.takeIf { u -> u.length == 2 } ?: current.uf,
                             latitude = captured.latitude,
                             longitude = captured.longitude,
-                            errors = it.errors - KEY_ADDRESS,
+                            hasGpsCoordinates = true,
+                            errors = current.errors - setOf(KEY_CEP, KEY_STREET, KEY_CITY, KEY_UF),
                             isFetchingLocation = false,
-                            feedbackMessage = "Localização capturada pelo GPS."
+                            feedbackMessage = "Endereço preenchido pelo GPS!"
                         )
                     }
                 }
@@ -187,20 +183,18 @@ class EditProfileViewModel(
                 return@launch
             }
 
-            val trimmedAddress = current.addressText.trim()
-            val matchesGps = current.gpsAddressText != null && trimmedAddress == current.gpsAddressText.trim()
-            val matchesInitial = trimmedAddress == current.initialAddressText.trim()
-
-            val resolved = when {
-                matchesGps -> ParsedAddress(current.cep, current.street, current.number, current.city, current.uf)
-                matchesInitial -> ParsedAddress(loggedUser.cep, loggedUser.street, loggedUser.number, loggedUser.city, loggedUser.uf)
-                else -> parseAddressText(trimmedAddress)
-            }
+            val sameAddress = current.street.trim() == loggedUser.street.trim() &&
+                current.number.trim() == loggedUser.number.trim() &&
+                current.city.trim() == loggedUser.city.trim() &&
+                current.uf.trim().equals(loggedUser.uf.trim(), ignoreCase = true)
 
             val (lat, lon) = when {
-                matchesGps -> current.latitude to current.longitude
-                matchesInitial -> loggedUser.latitude to loggedUser.longitude
-                else -> locationHelper.forwardGeocode(trimmedAddress) ?: (null to null)
+                current.hasGpsCoordinates -> current.latitude to current.longitude
+                sameAddress -> loggedUser.latitude to loggedUser.longitude
+                else -> {
+                    val query = "${current.street.trim()}, ${current.number.trim()}, ${current.city.trim()} - ${current.uf.trim()}"
+                    locationHelper.forwardGeocode(query) ?: (null to null)
+                }
             }
 
             authRepository.updateProfile(
@@ -209,11 +203,11 @@ class EditProfileViewModel(
                 email = current.email,
                 cpf = current.cpf,
                 phone = current.phone,
-                cep = resolved.cep,
-                street = resolved.street,
-                number = resolved.number,
-                city = resolved.city,
-                uf = resolved.uf,
+                cep = current.cep,
+                street = current.street,
+                number = current.number,
+                city = current.city,
+                uf = current.uf,
                 latitude = lat,
                 longitude = lon,
                 photoPath = current.photoPath,
@@ -251,7 +245,7 @@ class EditProfileViewModel(
                 return@launch
             }
 
-            val ownedPets = petRepository.getPetsByOwner(loggedUser.id)
+            val ownedPets = petDao.getPetsByOwner(loggedUser.id)
             val filesToDelete = buildList {
                 add(loggedUser.photoPath)
                 add(current.photoPath)
@@ -279,27 +273,20 @@ class EditProfileViewModel(
     }
 
     fun showFeedbackMessage(message: String) = _uiState.update { it.copy(feedbackMessage = message) }
-
     fun clearFeedbackMessage() = _uiState.update { it.copy(feedbackMessage = null) }
-
-    internal data class ParsedAddress(
-        val cep: String,
-        val street: String,
-        val number: String,
-        val city: String,
-        val uf: String
-    )
 
     companion object {
         const val KEY_FULL_NAME = "fullName"
         const val KEY_EMAIL = "email"
         const val KEY_CPF = "cpf"
         const val KEY_PHONE = "phone"
-        const val KEY_ADDRESS = "address"
+        const val KEY_CEP = "cep"
+        const val KEY_STREET = "street"
+        const val KEY_NUMBER = "number"
+        const val KEY_CITY = "city"
+        const val KEY_UF = "uf"
         const val KEY_NEW_PASSWORD = "newPassword"
         const val KEY_CONFIRM_PASSWORD = "confirmPassword"
-
-        private val CEP_REGEX = Regex("(?:\\(?CEP\\s*)?(\\d{5})-?(\\d{3})\\)?", RegexOption.IGNORE_CASE)
 
         internal fun validate(state: EditProfileUiState): Map<String, String> = buildMap {
             if (state.fullName.trim().length < 3) put(KEY_FULL_NAME, "Informe o nome completo.")
@@ -308,7 +295,11 @@ class EditProfileViewModel(
             if (state.phone.filter { it.isDigit() }.length !in 10..11) {
                 put(KEY_PHONE, "Informe o telefone com DDD (10 ou 11 dígitos).")
             }
-            if (state.addressText.trim().length < 3) put(KEY_ADDRESS, "Informe o endereço.")
+            if (state.cep.filter { it.isDigit() }.length != 8) put(KEY_CEP, "CEP inválido.")
+            if (state.street.trim().isEmpty()) put(KEY_STREET, "Informe a rua.")
+            if (state.number.trim().isEmpty()) put(KEY_NUMBER, "Informe o N°.")
+            if (state.city.trim().isEmpty()) put(KEY_CITY, "Informe a cidade.")
+            if (state.uf.trim().filter { it.isLetter() }.length != 2) put(KEY_UF, "UF.")
 
             val hasPassword = state.newPassword.isNotEmpty() || state.confirmPassword.isNotEmpty()
             if (hasPassword) {
@@ -320,31 +311,6 @@ class EditProfileViewModel(
                     state.newPassword != state.confirmPassword -> put(KEY_CONFIRM_PASSWORD, "As senhas não coincidem.")
                 }
             }
-        }
-
-        internal fun parseAddressText(raw: String): ParsedAddress {
-            val cepMatch = CEP_REGEX.find(raw)
-            val cepDigits = cepMatch?.let { "${it.groupValues[1]}${it.groupValues[2]}" }.orEmpty()
-            val clean = CEP_REGEX.replace(raw, "").trim().trimEnd(',', '-', '—', ' ')
-
-            val parts = clean.split(" — ", " - ", limit = 2)
-            val left = parts[0].trim()
-            val right = parts.getOrNull(1)?.trim().orEmpty()
-
-            val streetParts = left.split(",", limit = 2).map { it.trim() }
-            val street = streetParts[0]
-            val number = streetParts.getOrNull(1).orEmpty()
-
-            val regionParts = right.split(",", "/", "-").map { it.trim() }.filter { it.isNotEmpty() }
-            val last = regionParts.lastOrNull().orEmpty()
-            val uf = if (last.length == 2 && last.all { it.isLetter() }) last.uppercase() else ""
-            val city = when {
-                uf.isNotEmpty() && regionParts.size >= 2 -> regionParts[regionParts.size - 2]
-                uf.isEmpty() -> last
-                else -> ""
-            }
-
-            return ParsedAddress(cepDigits, street, number, city, uf)
         }
     }
 }

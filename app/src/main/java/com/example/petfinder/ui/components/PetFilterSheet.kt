@@ -54,9 +54,6 @@ private val DISTANCE_OPTIONS_KM: List<Pair<Double?, String>> = listOf(
     50.0 to "Até 50 km"
 )
 
-/**
- * Painel inferior de filtros avançados da TelaInicial (State Hoisting + Material 3).
- */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PetFilterBottomSheet(
@@ -73,14 +70,10 @@ fun PetFilterBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var draftSexName by rememberSaveable { mutableStateOf(initialSex?.name) }
-    var draftSizeName by rememberSaveable { mutableStateOf(initialSize?.name) }
-    var draftStatusName by rememberSaveable { mutableStateOf(initialStatus?.name) }
+    var selectedSex by rememberSaveable { mutableStateOf(initialSex) }
+    var selectedSize by rememberSaveable { mutableStateOf(initialSize) }
+    var selectedStatus by rememberSaveable { mutableStateOf(initialStatus) }
     var draftMaxDistanceKm by rememberSaveable { mutableStateOf(initialMaxDistanceKm) }
-
-    val selectedSex = draftSexName?.let { runCatching { PetSex.valueOf(it) }.getOrNull() }
-    val selectedSize = draftSizeName?.let { runCatching { PetSize.valueOf(it) }.getOrNull() }
-    val selectedStatus = draftStatusName?.let { runCatching { AdoptionStatus.valueOf(it) }.getOrNull() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -106,14 +99,14 @@ fun PetFilterBottomSheet(
                 title = "Sexo",
                 options = listOf(null to "Todos") + PetSex.entries.map { it to it.label },
                 selectedOption = selectedSex,
-                onSelect = { draftSexName = it?.name }
+                onSelect = { selectedSex = it }
             )
 
             FilterGroupSection(
                 title = "Porte",
                 options = listOf(null to "Todos") + PetSize.entries.map { it to it.label },
                 selectedOption = selectedSize,
-                onSelect = { draftSizeName = it?.name }
+                onSelect = { selectedSize = it }
             )
 
             FilterGroupSection(
@@ -122,7 +115,7 @@ fun PetFilterBottomSheet(
                     .filter { it != AdoptionStatus.ADOTADO }
                     .map { it to it.label },
                 selectedOption = selectedStatus,
-                onSelect = { draftStatusName = it?.name }
+                onSelect = { selectedStatus = it }
             )
 
             FilterGroupSection(
@@ -150,11 +143,7 @@ fun PetFilterBottomSheet(
                         onClick = onRequestLocation,
                         enabled = !isRefreshingLocation
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.MyLocation,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        Icon(Icons.Outlined.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isRefreshingLocation) "Obtendo localização..." else "Atualizar localização GPS",
@@ -173,9 +162,9 @@ fun PetFilterBottomSheet(
             ) {
                 OutlinedButton(
                     onClick = {
-                        draftSexName = null
-                        draftSizeName = null
-                        draftStatusName = null
+                        selectedSex = null
+                        selectedSize = null
+                        selectedStatus = null
                         draftMaxDistanceKm = null
                         onClearFilters()
                         onDismiss()
@@ -185,20 +174,12 @@ fun PetFilterBottomSheet(
                         .weight(1f)
                         .height(50.dp)
                 ) {
-                    Text(
-                        text = "Limpar",
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text(text = "Limpar", fontWeight = FontWeight.SemiBold)
                 }
 
                 Button(
                     onClick = {
-                        onApplyFilters(
-                            selectedSex,
-                            selectedSize,
-                            selectedStatus,
-                            draftMaxDistanceKm
-                        )
+                        onApplyFilters(selectedSex, selectedSize, selectedStatus, draftMaxDistanceKm)
                         onDismiss()
                     },
                     shape = RoundedCornerShape(28.dp),
@@ -210,11 +191,7 @@ fun PetFilterBottomSheet(
                         .weight(1.4f)
                         .height(50.dp)
                 ) {
-                    Text(
-                        text = "Aplicar filtros",
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
+                    Text(text = "Aplicar filtros", fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
 
@@ -249,10 +226,7 @@ private fun <T> FilterGroupSection(
                     selected = selected,
                     onClick = { onSelect(value) },
                     label = {
-                        Text(
-                            text = label,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                        )
+                        Text(text = label, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
                     },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,

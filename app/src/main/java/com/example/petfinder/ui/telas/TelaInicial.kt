@@ -26,10 +26,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,16 +48,13 @@ import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
 import com.example.petfinder.ui.components.PetFilterBottomSheet
 import com.example.petfinder.ui.components.PetLocalImage
+import com.example.petfinder.ui.components.rememberFeedbackSnackbar
 import com.example.petfinder.ui.components.rememberGpsRequester
-import com.example.petfinder.ui.viewmodel.HomeUiState
 import com.example.petfinder.ui.viewmodel.HomeViewModel
 import com.example.petfinder.ui.viewmodel.PetListItem
 import com.example.petfinder.util.LocationHelper
 import java.util.Locale
 
-/**
- * TelaInicial stateful conectada ao HomeViewModel.
- */
 @Composable
 fun TelaInicial(
     viewModel: HomeViewModel,
@@ -68,8 +63,12 @@ fun TelaInicial(
     onPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val state by viewModel.uiState.collectAsState()
+    val filters = state.filters
+    val snackbarHostState = rememberFeedbackSnackbar(
+        message = state.feedbackMessage,
+        onConsumed = viewModel::clearFeedbackMessage
+    )
     val context = LocalContext.current
     val locationHelper = remember(context) { LocationHelper(context) }
 
@@ -79,69 +78,20 @@ fun TelaInicial(
         onPermissionDenied = { viewModel.showFeedbackMessage("Permissão de localização negada.") }
     )
 
-    LaunchedEffect(uiState.feedbackMessage) {
-        val message = uiState.feedbackMessage
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearFeedbackMessage()
-        }
-    }
-
-    TelaInicialContent(
-        state = uiState,
-        snackbarHostState = snackbarHostState,
-        onSearchQueryChange = viewModel::onSearchQueryChange,
-        onSpeciesSelected = viewModel::onSpeciesSelected,
-        onApplyAdvancedFilters = viewModel::applyAdvancedFilters,
-        onClearAdvancedFilters = viewModel::clearAdvancedFilters,
-        onRefreshLocationClick = requestGps,
-        onPetClick = onPetClick,
-        onBottomTabSelected = { tab ->
-            when (tab) {
-                BottomNavTab.HOME -> Unit
-                BottomNavTab.PROFILE -> onNavigateToProfile()
-                BottomNavTab.REGISTER_PET -> onNavigateToRegisterPet()
-            }
-        },
-        modifier = modifier
-    )
-}
-
-/**
- * Conteúdo stateless da TelaInicial (State Hoisting).
- */
-@Composable
-fun TelaInicialContent(
-    state: HomeUiState,
-    snackbarHostState: SnackbarHostState,
-    onSearchQueryChange: (String) -> Unit,
-    onSpeciesSelected: (PetSpecies?) -> Unit,
-    onApplyAdvancedFilters: (
-        com.example.petfinder.data.model.PetSex?,
-        com.example.petfinder.data.model.PetSize?,
-        AdoptionStatus?,
-        Double?
-    ) -> Unit,
-    onClearAdvancedFilters: () -> Unit,
-    onRefreshLocationClick: () -> Unit,
-    onPetClick: (Long) -> Unit,
-    onBottomTabSelected: (BottomNavTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
     val fundo = Color(0xFFFAF8FC)
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
 
     if (showFilterSheet) {
         PetFilterBottomSheet(
-            initialSex = state.selectedSex,
-            initialSize = state.selectedSize,
-            initialStatus = state.selectedStatus,
-            initialMaxDistanceKm = state.maxDistanceKm,
+            initialSex = filters.selectedSex,
+            initialSize = filters.selectedSize,
+            initialStatus = filters.selectedStatus,
+            initialMaxDistanceKm = filters.maxDistanceKm,
             hasLocationReference = state.hasLocationReference,
             isRefreshingLocation = state.isRefreshingLocation,
-            onRequestLocation = onRefreshLocationClick,
-            onApplyFilters = onApplyAdvancedFilters,
-            onClearFilters = onClearAdvancedFilters,
+            onRequestLocation = requestGps,
+            onApplyFilters = viewModel::applyAdvancedFilters,
+            onClearFilters = viewModel::clearAdvancedFilters,
             onDismiss = { showFilterSheet = false }
         )
     }
@@ -152,7 +102,13 @@ fun TelaInicialContent(
         bottomBar = {
             NavegacaoInferior(
                 selectedTab = BottomNavTab.HOME,
-                onTabSelected = onBottomTabSelected
+                onTabSelected = { tab ->
+                    when (tab) {
+                        BottomNavTab.HOME -> Unit
+                        BottomNavTab.PROFILE -> onNavigateToProfile()
+                        BottomNavTab.REGISTER_PET -> onNavigateToRegisterPet()
+                    }
+                }
             )
         },
         containerColor = fundo
@@ -170,7 +126,7 @@ fun TelaInicialContent(
                 userPhotoPath = state.userPhotoPath,
                 locationLabel = state.userLocationLabel,
                 isRefreshingLocation = state.isRefreshingLocation,
-                onLocationClick = onRefreshLocationClick
+                onLocationClick = requestGps
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -183,16 +139,16 @@ fun TelaInicialContent(
 
             Spacer(modifier = Modifier.height(20.dp))
             BarraPesquisa(
-                searchQuery = state.searchQuery,
-                onSearchQueryChange = onSearchQueryChange,
-                activeFiltersCount = state.activeFiltersCount,
+                searchQuery = filters.searchQuery,
+                onSearchQueryChange = viewModel::onSearchQueryChange,
+                activeFiltersCount = filters.activeCount,
                 onFilterClick = { showFilterSheet = true }
             )
 
             Spacer(modifier = Modifier.height(24.dp))
             Categorias(
-                selectedSpecies = state.selectedSpecies,
-                onSpeciesSelected = onSpeciesSelected
+                selectedSpecies = filters.selectedSpecies,
+                onSpeciesSelected = viewModel::onSpeciesSelected
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -205,7 +161,7 @@ fun TelaInicialContent(
 }
 
 @Composable
-fun Cabecalho(
+private fun Cabecalho(
     userName: String,
     locationLabel: String,
     isRefreshingLocation: Boolean,
@@ -228,9 +184,7 @@ fun Cabecalho(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "Olá, $userName",
                 fontSize = 13.sp,
@@ -252,10 +206,7 @@ fun Cabecalho(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                 } else {
-                    Text(
-                        text = "📍",
-                        fontSize = 12.sp
-                    )
+                    Text(text = "📍", fontSize = 12.sp)
                 }
 
                 Text(
@@ -276,7 +227,7 @@ fun Cabecalho(
 }
 
 @Composable
-fun BarraPesquisa(
+private fun BarraPesquisa(
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     activeFiltersCount: Int = 0,
@@ -290,18 +241,11 @@ fun BarraPesquisa(
             modifier = Modifier
                 .weight(1f)
                 .height(50.dp)
-                .background(
-                    Color.White,
-                    RoundedCornerShape(12.dp)
-                )
+                .background(Color.White, RoundedCornerShape(12.dp))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "🔍",
-                fontSize = 18.sp
-            )
-
+            Text(text = "🔍", fontSize = 18.sp)
             Spacer(modifier = Modifier.width(8.dp))
 
             BasicTextField(
@@ -328,18 +272,11 @@ fun BarraPesquisa(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(
-                    Color(0xFF7044B5),
-                    RoundedCornerShape(12.dp)
-                )
+                .background(Color(0xFF7044B5), RoundedCornerShape(12.dp))
                 .clickable(onClick = onFilterClick),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "☷",
-                color = Color.White,
-                fontSize = 25.sp
-            )
+            Text(text = "☷", color = Color.White, fontSize = 25.sp)
             if (activeFiltersCount > 0) {
                 Box(
                     modifier = Modifier
@@ -363,7 +300,7 @@ fun BarraPesquisa(
 }
 
 @Composable
-fun Categorias(
+private fun Categorias(
     selectedSpecies: PetSpecies?,
     onSpeciesSelected: (PetSpecies?) -> Unit
 ) {
@@ -392,7 +329,6 @@ fun Categorias(
         ) {
             categorias.forEach { (species, label) ->
                 val ativa = selectedSpecies == species
-
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
@@ -416,7 +352,7 @@ fun Categorias(
 }
 
 @Composable
-fun CardAnimal(
+private fun CardAnimal(
     nome: String,
     detalhes: String,
     distancia: String,
@@ -430,9 +366,7 @@ fun CardAnimal(
             .width(220.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column {
             Box(
@@ -468,26 +402,16 @@ fun CardAnimal(
                 }
             }
 
-            Column(
-                modifier = Modifier.padding(12.dp)
-            ) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = nome,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF292431)
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = detalhes,
-                    fontSize = 12.sp,
-                    color = Color(0xFF898493)
-                )
-
+                Text(text = detalhes, fontSize = 12.sp, color = Color(0xFF898493))
                 Spacer(modifier = Modifier.height(6.dp))
-
                 Text(
                     text = distancia,
                     fontSize = 12.sp,
@@ -500,10 +424,12 @@ fun CardAnimal(
 }
 
 @Composable
-fun AnimaisProximos(
+private fun AnimaisProximos(
     pets: List<PetListItem>,
     onPetClick: (Long) -> Unit
 ) {
+    val ptBr = remember { Locale.forLanguageTag("pt-BR") }
+
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -516,7 +442,6 @@ fun AnimaisProximos(
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF292431)
             )
-
             Text(
                 text = "${pets.size} encontrados",
                 fontSize = 12.sp,
@@ -555,21 +480,19 @@ fun AnimaisProximos(
                 }
             }
         } else {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(pets, key = { it.pet.id }) { item ->
                     val pet = item.pet
                     val ageLabel = pet.estimatedAge?.takeIf { it.isNotBlank() } ?: pet.size.label
                     val distanceLabel = item.distanceKm?.let { km ->
-                        String.format(Locale("pt", "BR"), "%.1f km de você", km)
+                        String.format(ptBr, "%.1f km de você", km)
                     } ?: pet.status.label
 
                     CardAnimal(
                         nome = pet.name,
                         detalhes = "$ageLabel • ${pet.sex.label}",
                         distancia = distanceLabel,
-                        emoji = speciesEmoji(pet.species),
+                        emoji = pet.species.emoji,
                         photoPath = pet.photoPath,
                         status = pet.status,
                         onClick = { onPetClick(pet.id) }
@@ -578,10 +501,4 @@ fun AnimaisProximos(
             }
         }
     }
-}
-
-private fun speciesEmoji(species: PetSpecies): String = when (species) {
-    PetSpecies.CACHORRO -> "🐶"
-    PetSpecies.GATO -> "🐱"
-    PetSpecies.OUTRO -> "🐰"
 }

@@ -3,7 +3,6 @@ package com.example.petfinder.ui.telas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,16 +32,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,17 +51,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.petfinder.data.local.entity.PetEntity
 import com.example.petfinder.data.model.AdoptionStatus
-import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
 import com.example.petfinder.ui.components.PetLocalImage
+import com.example.petfinder.ui.components.formatCpf
 import com.example.petfinder.ui.components.formatPhone
-import com.example.petfinder.ui.viewmodel.ProfileUiState
+import com.example.petfinder.ui.components.rememberFeedbackSnackbar
 import com.example.petfinder.ui.viewmodel.ProfileViewModel
 
-/**
- * TelaPerfil stateful conectada ao ProfileViewModel.
- */
 @Composable
 fun TelaPerfil(
     viewModel: ProfileViewModel,
@@ -76,50 +69,12 @@ fun TelaPerfil(
     onPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(uiState.feedbackMessage) {
-        val message = uiState.feedbackMessage
-        if (message != null) {
-            snackbarHostState.showSnackbar(message)
-            viewModel.clearFeedbackMessage()
-        }
-    }
-
-    TelaPerfilContent(
-        state = uiState,
-        snackbarHostState = snackbarHostState,
-        onPetClick = onPetClick,
-        onEditProfileClick = onNavigateToEditProfile,
-        onLogout = {
-            viewModel.logout()
-            onLogout()
-        },
-        onBottomTabSelected = { tab ->
-            when (tab) {
-                BottomNavTab.HOME -> onNavigateToHome()
-                BottomNavTab.PROFILE -> Unit
-                BottomNavTab.REGISTER_PET -> onNavigateToRegisterPet()
-            }
-        },
-        modifier = modifier
+    val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = rememberFeedbackSnackbar(
+        message = state.feedbackMessage,
+        onConsumed = viewModel::clearFeedbackMessage
     )
-}
 
-/**
- * Conteúdo stateless da TelaPerfil (State Hoisting).
- */
-@Composable
-fun TelaPerfilContent(
-    state: ProfileUiState,
-    snackbarHostState: SnackbarHostState,
-    onPetClick: (Long) -> Unit,
-    onEditProfileClick: () -> Unit,
-    onLogout: () -> Unit,
-    onBottomTabSelected: (BottomNavTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
     val fundo = Color(0xFFFAF8FC)
     var infoDialogTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var infoDialogBody by rememberSaveable { mutableStateOf<String?>(null) }
@@ -147,7 +102,7 @@ fun TelaPerfilContent(
                     onClick = {
                         infoDialogTitle = null
                         infoDialogBody = null
-                        onEditProfileClick()
+                        onNavigateToEditProfile()
                     }
                 ) {
                     Text("Editar")
@@ -167,7 +122,13 @@ fun TelaPerfilContent(
         bottomBar = {
             NavegacaoInferior(
                 selectedTab = BottomNavTab.PROFILE,
-                onTabSelected = onBottomTabSelected
+                onTabSelected = { tab ->
+                    when (tab) {
+                        BottomNavTab.HOME -> onNavigateToHome()
+                        BottomNavTab.PROFILE -> Unit
+                        BottomNavTab.REGISTER_PET -> onNavigateToRegisterPet()
+                    }
+                }
             )
         },
         containerColor = fundo
@@ -189,9 +150,7 @@ fun TelaPerfilContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 PetLocalImage(
                     photoPath = user?.photoPath,
                     contentDescription = "Foto de perfil",
@@ -211,29 +170,17 @@ fun TelaPerfilContent(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF292431)
                     )
-
                     Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = displayEmail,
-                        fontSize = 12.sp,
-                        color = Color(0xFF898493)
-                    )
-
+                    Text(text = displayEmail, fontSize = 12.sp, color = Color(0xFF898493))
                     Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "📍 $displayLocation",
-                        fontSize = 12.sp,
-                        color = Color(0xFF898493)
-                    )
+                    Text(text = "📍 $displayLocation", fontSize = 12.sp, color = Color(0xFF898493))
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
             Button(
-                onClick = onEditProfileClick,
+                onClick = onNavigateToEditProfile,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(44.dp),
@@ -243,32 +190,21 @@ fun TelaPerfilContent(
                     contentColor = Color(0xFF43266F)
                 )
             ) {
-                Text(
-                    text = "✎  Editar perfil",
-                    fontSize = 14.sp
-                )
+                Text(text = "✎  Editar perfil", fontSize = 14.sp)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-
-            EstatisticasPerfil(
-                registeredCount = state.registeredCount,
-                adoptedCount = state.adoptedCount
-            )
+            EstatisticasPerfil(registeredCount = state.registeredCount, adoptedCount = state.adoptedCount)
 
             Spacer(modifier = Modifier.height(24.dp))
-            MeusAnimais(
-                pets = state.myPets,
-                onPetClick = onPetClick
-            )
+            MeusAnimais(pets = state.myPets, onPetClick = onPetClick)
 
             Spacer(modifier = Modifier.height(24.dp))
             SecaoConta(
                 onPersonalDataClick = {
                     infoDialogTitle = "Dados pessoais e CPF"
                     infoDialogBody = if (user != null) {
-                        val phoneLabel = user.phone.takeIf { it.isNotBlank() }?.let { formatPhone(it) }
-                            ?: "Não informado"
+                        val phoneLabel = user.phone.takeIf { it.isNotBlank() }?.let(::formatPhone) ?: "Não informado"
                         "Nome: ${user.fullName}\nE-mail: ${user.email}\nCPF: ${formatCpf(user.cpf)}\nTelefone: $phoneLabel"
                     } else {
                         "Nenhum usuário autenticado."
@@ -278,68 +214,43 @@ fun TelaPerfilContent(
                     infoDialogTitle = "Endereço"
                     infoDialogBody = user?.formattedAddress ?: "Endereço não cadastrado."
                 },
-                onLogoutClick = onLogout
+                onLogoutClick = {
+                    viewModel.logout()
+                    onLogout()
+                }
             )
         }
     }
 }
 
 @Composable
-fun EstatisticasPerfil(
+private fun EstatisticasPerfil(
     registeredCount: Int,
     adoptedCount: Int
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Color(0xFFFAF8FC),
-                RoundedCornerShape(20.dp)
-            )
+            .background(Color(0xFFFAF8FC), RoundedCornerShape(20.dp))
             .padding(vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = registeredCount.toString(),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Cadastrados",
-                fontSize = 11.sp,
-                color = Color(0xFF898493)
-            )
+        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = registeredCount.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(text = "Cadastrados", fontSize = 11.sp, color = Color(0xFF898493))
         }
 
-        VerticalDivider(
-            modifier = Modifier.height(42.dp),
-            color = Color(0xFFDDD5E8)
-        )
+        VerticalDivider(modifier = Modifier.height(42.dp), color = Color(0xFFDDD5E8))
 
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = adoptedCount.toString(),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Adotados",
-                fontSize = 11.sp,
-                color = Color(0xFF898493)
-            )
+        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(text = adoptedCount.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(text = "Adotados", fontSize = 11.sp, color = Color(0xFF898493))
         }
     }
 }
 
 @Composable
-fun CardMeuAnimal(
+private fun CardMeuAnimal(
     nome: String,
     detalhes: String,
     status: String,
@@ -352,9 +263,7 @@ fun CardMeuAnimal(
             .width(160.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column {
             PetLocalImage(
@@ -367,33 +276,15 @@ fun CardMeuAnimal(
                     .height(110.dp)
             )
 
-            Column(
-                modifier = Modifier.padding(12.dp)
-            ) {
-                Text(
-                    text = nome,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF292431)
-                )
-
-                Text(
-                    text = detalhes,
-                    fontSize = 11.sp,
-                    color = Color(0xFF898493)
-                )
-
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(text = nome, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFF292431))
+                Text(text = detalhes, fontSize = 11.sp, color = Color(0xFF898493))
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = status,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = if (status == AdoptionStatus.ADOTADO.label) {
-                        Color(0xFF388E3C)
-                    } else {
-                        Color(0xFF7044B5)
-                    }
+                    color = if (status == AdoptionStatus.ADOTADO.label) Color(0xFF388E3C) else Color(0xFF7044B5)
                 )
             }
         }
@@ -401,7 +292,7 @@ fun CardMeuAnimal(
 }
 
 @Composable
-fun MeusAnimais(
+private fun MeusAnimais(
     pets: List<PetEntity>,
     onPetClick: (Long) -> Unit
 ) {
@@ -411,18 +302,8 @@ fun MeusAnimais(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Meus animais",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF292431)
-            )
-
-            Text(
-                text = "${pets.size} cadastrados",
-                fontSize = 12.sp,
-                color = Color(0xFF7044B5)
-            )
+            Text(text = "Meus animais", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF292431))
+            Text(text = "${pets.size} cadastrados", fontSize = 12.sp, color = Color(0xFF7044B5))
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -441,21 +322,14 @@ fun MeusAnimais(
                 )
             }
         } else {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(pets, key = { it.id }) { pet ->
                     val ageOrSize = pet.estimatedAge?.takeIf { it.isNotBlank() } ?: pet.size.label
-                    val emoji = when (pet.species) {
-                        PetSpecies.CACHORRO -> "🐶"
-                        PetSpecies.GATO -> "🐱"
-                        PetSpecies.OUTRO -> "🐰"
-                    }
                     CardMeuAnimal(
                         nome = pet.name,
                         detalhes = "$ageOrSize • ${pet.sex.label}",
                         status = pet.status.label,
-                        emoji = emoji,
+                        emoji = pet.species.emoji,
                         photoPath = pet.photoPath,
                         onClick = { onPetClick(pet.id) }
                     )
@@ -466,7 +340,7 @@ fun MeusAnimais(
 }
 
 @Composable
-fun OpcaoConta(
+private fun OpcaoConta(
     icone: ImageVector,
     titulo: String,
     onClick: () -> Unit
@@ -478,91 +352,39 @@ fun OpcaoConta(
             .padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icone,
-            contentDescription = null,
-            tint = Color(0xFF686174),
-            modifier = Modifier.size(20.dp)
-        )
-
+        Icon(imageVector = icone, contentDescription = null, tint = Color(0xFF686174), modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(12.dp))
-
-        Text(
-            text = titulo,
-            fontSize = 13.sp,
-            color = Color(0xFF514B5A),
-            modifier = Modifier.weight(1f)
-        )
-
-        Icon(
-            imageVector = Icons.Default.ChevronRight,
-            contentDescription = "Abrir",
-            tint = Color(0xFF686174)
-        )
+        Text(text = titulo, fontSize = 13.sp, color = Color(0xFF514B5A), modifier = Modifier.weight(1f))
+        Icon(imageVector = Icons.Default.ChevronRight, contentDescription = "Abrir", tint = Color(0xFF686174))
     }
 }
 
 @Composable
-fun SecaoConta(
+private fun SecaoConta(
     onPersonalDataClick: () -> Unit,
     onAddressClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
     Column {
-        Text(
-            text = "Conta",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF292431)
-        )
-
+        Text(text = "Conta", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF292431))
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Color(0xFFF1EDF8),
-                    RoundedCornerShape(18.dp)
-                )
+                .background(Color(0xFFF1EDF8), RoundedCornerShape(18.dp))
         ) {
-            OpcaoConta(
-                icone = Icons.Default.Person,
-                titulo = "Dados pessoais e CPF",
-                onClick = onPersonalDataClick
-            )
-
+            OpcaoConta(icone = Icons.Default.Person, titulo = "Dados pessoais e CPF", onClick = onPersonalDataClick)
             HorizontalDivider(color = Color(0xFFDDD5E8))
-
-            OpcaoConta(
-                icone = Icons.Default.LocationOn,
-                titulo = "Endereço",
-                onClick = onAddressClick
-            )
+            OpcaoConta(icone = Icons.Default.LocationOn, titulo = "Endereço", onClick = onAddressClick)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         TextButton(onClick = onLogoutClick) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                contentDescription = null,
-                tint = Color(0xFFE53935)
-            )
-
+            Icon(imageVector = Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Color(0xFFE53935))
             Spacer(modifier = Modifier.width(8.dp))
-
-            Text(
-                text = "Sair da conta",
-                color = Color(0xFFE53935),
-                fontSize = 13.sp
-            )
+            Text(text = "Sair da conta", color = Color(0xFFE53935), fontSize = 13.sp)
         }
     }
-}
-
-private fun formatCpf(cpfDigits: String): String {
-    if (cpfDigits.length != 11) return cpfDigits
-    return "${cpfDigits.substring(0, 3)}.${cpfDigits.substring(3, 6)}." +
-        "${cpfDigits.substring(6, 9)}-${cpfDigits.substring(9, 11)}"
 }

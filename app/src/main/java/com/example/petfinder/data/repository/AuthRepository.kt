@@ -3,28 +3,32 @@ package com.example.petfinder.data.repository
 import com.example.petfinder.data.local.SessionManager
 import com.example.petfinder.data.local.dao.UserDao
 import com.example.petfinder.data.local.entity.UserEntity
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import java.security.MessageDigest
 
-/**
- * Repositório responsável pelo cadastro, login e controole de sessão offline do usuári.
- */
 class AuthRepository(
     private val userDao: UserDao,
     private val sessionManager: SessionManager
 ) {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun observeCurrentUser(): Flow<UserEntity?> =
+        sessionManager.currentUserId.flatMapLatest { userId ->
+            if (userId == null) flowOf(null) else userDao.observeUserById(userId)
+        }
+
     suspend fun getLoggedInUser(): UserEntity? {
         val userId = sessionManager.getUserId() ?: return null
         val user = userDao.getUserById(userId)
-        if (user == null) {
-            sessionManager.clearSession()
-        }
+        if (user == null) sessionManager.clearSession()
         return user
     }
 
     suspend fun login(email: String, password: String): Result<UserEntity> {
-        val normalizedEmail = email.trim().lowercase()
-        val user = userDao.getUserByEmail(normalizedEmail)
+        val user = userDao.getUserByEmail(email.trim().lowercase())
             ?: return Result.failure(IllegalArgumentException("E-mail ou senha inválidos."))
 
         if (user.passwordHash != hashPassword(password)) {
@@ -70,9 +74,8 @@ class AuthRepository(
         )
 
         val insertedId = userDao.insertUser(newUser)
-        val savedUser = newUser.copy(id = insertedId)
         sessionManager.saveUserId(insertedId)
-        return Result.success(savedUser)
+        return Result.success(newUser.copy(id = insertedId))
     }
 
     suspend fun updateProfile(
@@ -100,16 +103,10 @@ class AuthRepository(
             return Result.failure(IllegalStateException("Já existe uma conta cadastrada com este e-mail."))
         }
 
-        val updatedPasswordHash = if (!newPassword.isNullOrBlank()) {
-            hashPassword(newPassword)
-        } else {
-            currentUser.passwordHash
-        }
-
         val updatedUser = currentUser.copy(
             fullName = fullName.trim(),
             email = normalizedEmail,
-            passwordHash = updatedPasswordHash,
+            passwordHash = if (!newPassword.isNullOrBlank()) hashPassword(newPassword) else currentUser.passwordHash,
             cpf = cpf.filter { it.isDigit() },
             phone = phone.filter { it.isDigit() },
             cep = cep.filter { it.isDigit() },
@@ -127,8 +124,7 @@ class AuthRepository(
     }
 
     suspend fun deleteAccount(userId: Long): Result<Unit> = runCatching {
-        val deletedRows = userDao.deleteUserById(userId)
-        if (deletedRows <= 0) {
+        if (userDao.deleteUserById(userId) <= 0) {
             throw IllegalStateException("Conta não encontrada.")
         }
         sessionManager.clearSession()
@@ -140,9 +136,8 @@ class AuthRepository(
 
     companion object {
         internal fun hashPassword(password: String): String {
-            val digest = MessageDigest.getInstance("SHA-256")
-            val hashBytes = digest.digest(password.toByteArray(Charsets.UTF_8))
-            return hashBytes.joinToString("") { "%02x".format(it) }
+            val bytes = MessageDigest.getInstance("SHA-256").digest(password.toByteArray(Charsets.UTF_8))
+            return bytes.joinToString("") { "%02x".format(it) }
         }
     }
 }

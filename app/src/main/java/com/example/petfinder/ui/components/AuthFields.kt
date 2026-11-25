@@ -1,5 +1,6 @@
 package com.example.petfinder.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,10 +8,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
@@ -29,21 +33,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.size
 
-/**
- * Campo de texto padronizado no estilo dos mockups do PetFinder:
- * rótulo externo acima, dica opcional à direita e caixa preenchida arredondada sem borda.
- */
 @Composable
 fun PetFinderTextField(
     label: String,
@@ -73,10 +75,7 @@ fun PetFinderTextField(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PetFormFieldLabel(
-                label = label,
-                isRequired = isRequired
-            )
+            PetFormFieldLabel(label = label, isRequired = isRequired)
             if (trailingHint != null) {
                 Text(
                     text = trailingHint,
@@ -90,10 +89,7 @@ fun PetFinderTextField(
             value = value,
             onValueChange = onValueChange,
             placeholder = {
-                Text(
-                    text = placeholder,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                )
+                Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f))
             },
             leadingIcon = leadingIcon,
             trailingIcon = trailingIcon,
@@ -174,9 +170,6 @@ fun PetFinderPasswordField(
     )
 }
 
-/**
- * Botão primário em formato pílula usado nas telas de Login e Cadastro.
- */
 @Composable
 fun PetFinderPrimaryButton(
     text: String,
@@ -213,106 +206,179 @@ fun PetFinderPrimaryButton(
     }
 }
 
-/**
- * Máscara visual 000.000.000-00 para CPF armazenado apenas com dígitos.
- */
-class CpfVisualTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val trimmed = text.text.take(11)
-        val formatted = buildString {
-            for (i in trimmed.indices) {
-                append(trimmed[i])
-                if (i == 2 && trimmed.length > 3) append('.')
-                if (i == 5 && trimmed.length > 6) append('.')
-                if (i == 8 && trimmed.length > 9) append('-')
+@Composable
+fun UserAddressFieldsSection(
+    cep: String,
+    street: String,
+    number: String,
+    city: String,
+    uf: String,
+    errors: Map<String, String>,
+    enabled: Boolean,
+    isFetchingLocation: Boolean,
+    onCepChange: (String) -> Unit,
+    onStreetChange: (String) -> Unit,
+    onNumberChange: (String) -> Unit,
+    onCityChange: (String) -> Unit,
+    onUfChange: (String) -> Unit,
+    onUseGpsClick: () -> Unit,
+    subtitle: String? = null,
+    isRequired: Boolean = false,
+    ufImeAction: ImeAction = ImeAction.Next,
+    ufKeyboardActions: KeyboardActions = KeyboardActions.Default
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Endereço",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = enabled && !isFetchingLocation, onClick = onUseGpsClick)
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                if (isFetchingLocation) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+                } else {
+                    Icon(Icons.Outlined.MyLocation, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Usar GPS",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
 
-        val offsetMapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int {
-                var extra = 0
-                if (trimmed.length > 3 && offset > 3) extra++
-                if (trimmed.length > 6 && offset > 6) extra++
-                if (trimmed.length > 9 && offset > 9) extra++
-                return (offset + extra).coerceAtMost(formatted.length)
-            }
+        PetFinderTextField(
+            label = "CEP",
+            isRequired = isRequired,
+            value = cep,
+            onValueChange = onCepChange,
+            placeholder = "00000-000",
+            visualTransformation = CepVisualTransformation,
+            errorText = errors["cep"],
+            enabled = enabled,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
+        )
 
-            override fun transformedToOriginal(offset: Int): Int {
-                var sub = 0
-                if (trimmed.length > 3 && offset > 3) sub++
-                if (trimmed.length > 6 && offset > 7) sub++
-                if (trimmed.length > 9 && offset > 11) sub++
-                return (offset - sub).coerceIn(0, trimmed.length)
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PetFinderTextField(
+                label = "Rua",
+                isRequired = isRequired,
+                value = street,
+                onValueChange = onStreetChange,
+                placeholder = "Rua, avenida",
+                errorText = errors["street"],
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                modifier = Modifier.weight(2.2f)
+            )
+            PetFinderTextField(
+                label = "Número",
+                isRequired = isRequired,
+                value = number,
+                onValueChange = onNumberChange,
+                placeholder = "N°",
+                errorText = errors["number"],
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f)
+            )
         }
-        return TransformedText(AnnotatedString(formatted), offsetMapping)
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            PetFinderTextField(
+                label = "Cidade",
+                isRequired = isRequired,
+                value = city,
+                onValueChange = onCityChange,
+                placeholder = "Cidade",
+                errorText = errors["city"],
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+                modifier = Modifier.weight(2.4f)
+            )
+            PetFinderTextField(
+                label = "UF",
+                isRequired = isRequired,
+                value = uf,
+                onValueChange = onUfChange,
+                placeholder = "SP",
+                errorText = errors["uf"],
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ufImeAction),
+                keyboardActions = ufKeyboardActions,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
-/**
- * Máscara visual 00000-000 para CEP armazenado apenas com dígitos.
- */
-class CepVisualTransformation : VisualTransformation {
+class MaskVisualTransformation(private val maskFor: (String) -> String) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
-        val trimmed = text.text.take(8)
+        val mask = maskFor(text.text)
+        val maxDigits = mask.count { it == '#' }
+        val digits = text.text.take(maxDigits)
+        val digitPositions = IntArray(digits.length)
+
         val formatted = buildString {
-            for (i in trimmed.indices) {
-                append(trimmed[i])
-                if (i == 4 && trimmed.length > 5) append('-')
+            var digitIndex = 0
+            for (ch in mask) {
+                if (digitIndex >= digits.length) break
+                if (ch == '#') {
+                    digitPositions[digitIndex] = length
+                    append(digits[digitIndex++])
+                } else {
+                    append(ch)
+                }
             }
         }
 
-        val offsetMapping = object : OffsetMapping {
+        val mapping = object : OffsetMapping {
             override fun originalToTransformed(offset: Int): Int {
-                val extra = if (trimmed.length > 5 && offset > 5) 1 else 0
-                return (offset + extra).coerceAtMost(formatted.length)
+                val clamped = offset.coerceIn(0, digits.length)
+                return if (clamped == 0) 0 else digitPositions[clamped - 1] + 1
             }
 
-            override fun transformedToOriginal(offset: Int): Int {
-                val sub = if (trimmed.length > 5 && offset > 5) 1 else 0
-                return (offset - sub).coerceIn(0, trimmed.length)
-            }
+            override fun transformedToOriginal(offset: Int): Int =
+                digitPositions.count { it < offset }
         }
-        return TransformedText(AnnotatedString(formatted), offsetMapping)
+        return TransformedText(AnnotatedString(formatted), mapping)
     }
 }
 
-/**
- * Máscara visual brasileira (00) 0000-0000 ou (00) 00000-0000 para telefone armazenado apenas com dígitos.
- */
-class PhoneVisualTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val trimmed = text.text.take(11)
-        val splitIndex = if (trimmed.length > 10) 6 else 5
-        val formatted = buildString {
-            for (i in trimmed.indices) {
-                if (i == 0) append('(')
-                append(trimmed[i])
-                if (i == 1 && trimmed.length > 2) append(") ")
-                if (i == splitIndex && trimmed.length > splitIndex + 1) append('-')
-            }
-        }
+val CpfVisualTransformation = MaskVisualTransformation { "###.###.###-##" }
+val CepVisualTransformation = MaskVisualTransformation { "#####-###" }
+val PhoneVisualTransformation = MaskVisualTransformation {
+    if (it.length > 10) "(##) #####-####" else "(##) ####-####"
+}
 
-        val offsetMapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int {
-                var extra = 0
-                if (trimmed.isNotEmpty()) extra += 1
-                if (trimmed.length > 2 && offset > 2) extra += 2
-                if (trimmed.length > splitIndex + 1 && offset > splitIndex + 1) extra += 1
-                return (offset + extra).coerceAtMost(formatted.length)
-            }
-
-            override fun transformedToOriginal(offset: Int): Int {
-                var sub = 0
-                if (trimmed.isNotEmpty() && offset > 0) sub += 1
-                if (trimmed.length > 2 && offset > 3) sub += 2
-                val dashPos = splitIndex + 4
-                if (trimmed.length > splitIndex + 1 && offset > dashPos) sub += 1
-                return (offset - sub).coerceIn(0, trimmed.length)
-            }
-        }
-        return TransformedText(AnnotatedString(formatted), offsetMapping)
-    }
+fun formatCpf(cpfDigits: String): String {
+    val digits = cpfDigits.filter { it.isDigit() }
+    if (digits.length != 11) return cpfDigits
+    return "${digits.substring(0, 3)}.${digits.substring(3, 6)}.${digits.substring(6, 9)}-${digits.substring(9, 11)}"
 }
 
 fun formatPhone(phoneDigits: String): String {

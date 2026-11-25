@@ -25,9 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,7 +36,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,13 +67,15 @@ import com.example.petfinder.ui.components.PetFinderTextField
 import com.example.petfinder.ui.components.PetLocalImage
 import com.example.petfinder.ui.components.PhoneVisualTransformation
 import com.example.petfinder.ui.components.PhotoSourceDialog
+import com.example.petfinder.ui.components.UserAddressFieldsSection
+import com.example.petfinder.ui.components.rememberFeedbackSnackbar
 import com.example.petfinder.ui.components.rememberGpsRequester
 import com.example.petfinder.ui.components.rememberPhotoPickerActions
-import com.example.petfinder.ui.viewmodel.EditProfileUiState
 import com.example.petfinder.ui.viewmodel.EditProfileViewModel
 import com.example.petfinder.util.LocationHelper
 import com.example.petfinder.util.PhotoStorageHelper
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TelaEditarPerfil(
     viewModel: EditProfileViewModel,
@@ -86,8 +85,11 @@ fun TelaEditarPerfil(
     onSessionExpired: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val state by viewModel.uiState.collectAsState()
+    val snackbarHostState = rememberFeedbackSnackbar(
+        message = state.feedbackMessage,
+        onConsumed = viewModel::clearFeedbackMessage
+    )
     val context = LocalContext.current
     val locationHelper = remember(context) { LocationHelper(context) }
 
@@ -100,86 +102,23 @@ fun TelaEditarPerfil(
     val requestGps = rememberGpsRequester(
         locationHelper = locationHelper,
         onPermissionGranted = { viewModel.fillLocationFromGps(locationHelper) },
-        onPermissionDenied = { viewModel.showFeedbackMessage("Permissão de localização negada. Digite o endereço.") }
+        onPermissionDenied = { viewModel.showFeedbackMessage("Permissão de localização negada. Preencha o endereço manualmente.") }
     )
 
     LaunchedEffect(Unit) {
         viewModel.loadCurrentUser(onSessionExpired = onSessionExpired)
     }
 
-    LaunchedEffect(uiState.feedbackMessage) {
-        val message = uiState.feedbackMessage ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
-        viewModel.clearFeedbackMessage()
-    }
-
-    TelaEditarPerfilContent(
-        state = uiState,
-        snackbarHostState = snackbarHostState,
-        onNavigateBack = onNavigateBack,
-        onPickFromGallery = photoActions.pickFromGallery,
-        onTakePhoto = photoActions.takePhoto,
-        onRemovePhoto = viewModel::onRemovePhoto,
-        onFullNameChange = viewModel::onFullNameChange,
-        onEmailChange = viewModel::onEmailChange,
-        onCpfChange = viewModel::onCpfChange,
-        onPhoneChange = viewModel::onPhoneChange,
-        onAddressChange = viewModel::onAddressChange,
-        onUseCurrentLocationClick = requestGps,
-        onNewPasswordChange = viewModel::onNewPasswordChange,
-        onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
-        onSaveClick = {
-            viewModel.saveChanges(
-                context = context,
-                locationHelper = locationHelper,
-                onSuccess = onSaveSuccess,
-                onSessionExpired = onSessionExpired
-            )
-        },
-        onConfirmDeleteAccount = {
-            viewModel.deleteAccount(
-                context = context,
-                onDeleted = onAccountDeleted,
-                onSessionExpired = onSessionExpired
-            )
-        },
-        modifier = modifier
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TelaEditarPerfilContent(
-    state: EditProfileUiState,
-    snackbarHostState: SnackbarHostState,
-    onNavigateBack: () -> Unit,
-    onPickFromGallery: () -> Unit,
-    onTakePhoto: () -> Unit,
-    onRemovePhoto: () -> Unit,
-    onFullNameChange: (String) -> Unit,
-    onEmailChange: (String) -> Unit,
-    onCpfChange: (String) -> Unit,
-    onPhoneChange: (String) -> Unit,
-    onAddressChange: (String) -> Unit,
-    onUseCurrentLocationClick: () -> Unit,
-    onNewPasswordChange: (String) -> Unit,
-    onConfirmPasswordChange: (String) -> Unit,
-    onSaveClick: () -> Unit,
-    onConfirmDeleteAccount: () -> Unit,
-    modifier: Modifier = Modifier
-) {
     var showPhotoSourceDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteAccountDialog by rememberSaveable { mutableStateOf(false) }
-    val cpfTransformation = remember { CpfVisualTransformation() }
-    val phoneTransformation = remember { PhoneVisualTransformation() }
 
     if (showPhotoSourceDialog) {
         PhotoSourceDialog(
             title = "Alterar foto de perfil",
             onDismiss = { showPhotoSourceDialog = false },
-            onTakePhoto = onTakePhoto,
-            onPickFromGallery = onPickFromGallery,
-            onRemovePhoto = if (!state.photoPath.isNullOrBlank()) onRemovePhoto else null
+            onTakePhoto = photoActions.takePhoto,
+            onPickFromGallery = photoActions.pickFromGallery,
+            onRemovePhoto = if (!state.photoPath.isNullOrBlank()) viewModel::onRemovePhoto else null
         )
     }
 
@@ -188,16 +127,18 @@ fun TelaEditarPerfilContent(
             onDismissRequest = { if (!state.isDeleting) showDeleteAccountDialog = false },
             title = { Text("Excluir minha conta?") },
             text = {
-                Text(
-                    "Essa ação apagará permanentemente sua conta e todos os animais cadastrados por você. Não é possível desfazer."
-                )
+                Text("Essa ação apagará permanentemente sua conta e todos os animais cadastrados por você. Não é possível desfazer.")
             },
             confirmButton = {
                 TextButton(
                     enabled = !state.isDeleting,
                     onClick = {
                         showDeleteAccountDialog = false
-                        onConfirmDeleteAccount()
+                        viewModel.deleteAccount(
+                            context = context,
+                            onDeleted = onAccountDeleted,
+                            onSessionExpired = onSessionExpired
+                        )
                     }
                 ) {
                     Text("Excluir conta", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
@@ -242,7 +183,14 @@ fun TelaEditarPerfilContent(
                         ) {
                             PetFinderPrimaryButton(
                                 text = "Salvar alterações",
-                                onClick = onSaveClick,
+                                onClick = {
+                                    viewModel.saveChanges(
+                                        context = context,
+                                        locationHelper = locationHelper,
+                                        onSuccess = onSaveSuccess,
+                                        onSessionExpired = onSessionExpired
+                                    )
+                                },
                                 isLoading = state.isSaving,
                                 enabled = !state.isBusy
                             )
@@ -324,7 +272,7 @@ fun TelaEditarPerfilContent(
                 label = "Nome completo",
                 isRequired = true,
                 value = state.fullName,
-                onValueChange = onFullNameChange,
+                onValueChange = viewModel::onFullNameChange,
                 placeholder = "Mariana Costa",
                 errorText = state.errors[EditProfileViewModel.KEY_FULL_NAME],
                 enabled = !state.isBusy,
@@ -335,7 +283,7 @@ fun TelaEditarPerfilContent(
                 label = "E-mail",
                 isRequired = true,
                 value = state.email,
-                onValueChange = onEmailChange,
+                onValueChange = viewModel::onEmailChange,
                 placeholder = "mariana.costa@email.com",
                 errorText = state.errors[EditProfileViewModel.KEY_EMAIL],
                 enabled = !state.isBusy,
@@ -347,9 +295,9 @@ fun TelaEditarPerfilContent(
                 isRequired = true,
                 trailingHint = "Não é exibido publicamente",
                 value = state.cpf,
-                onValueChange = onCpfChange,
+                onValueChange = viewModel::onCpfChange,
                 placeholder = "000.000.000-00",
-                visualTransformation = cpfTransformation,
+                visualTransformation = CpfVisualTransformation,
                 errorText = state.errors[EditProfileViewModel.KEY_CPF],
                 enabled = !state.isBusy,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
@@ -359,64 +307,33 @@ fun TelaEditarPerfilContent(
                 label = "Telefone para contato",
                 isRequired = true,
                 value = state.phone,
-                onValueChange = onPhoneChange,
+                onValueChange = viewModel::onPhoneChange,
                 placeholder = "(00) 00000-0000",
-                visualTransformation = phoneTransformation,
+                visualTransformation = PhoneVisualTransformation,
                 errorText = state.errors[EditProfileViewModel.KEY_PHONE],
                 enabled = !state.isBusy,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next)
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Endereço",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = "Usado para calcular a distância dos animais.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                PetFinderTextField(
-                    label = "Endereço",
-                    isRequired = true,
-                    value = state.addressText,
-                    onValueChange = onAddressChange,
-                    placeholder = "R. Vergueiro, 3185 — Vila Mariana, São Paulo",
-                    leadingIcon = {
-                        Icon(Icons.Outlined.LocationOn, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    errorText = state.errors[EditProfileViewModel.KEY_ADDRESS],
-                    enabled = !state.isBusy,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next)
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !state.isBusy && !state.isFetchingLocation, onClick = onUseCurrentLocationClick)
-                        .padding(vertical = 4.dp)
-                ) {
-                    if (state.isFetchingLocation) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
-                    } else {
-                        Icon(Icons.Outlined.MyLocation, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Usar minha localização atual",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
+            UserAddressFieldsSection(
+                cep = state.cep,
+                street = state.street,
+                number = state.number,
+                city = state.city,
+                uf = state.uf,
+                errors = state.errors,
+                enabled = !state.isBusy,
+                isFetchingLocation = state.isFetchingLocation,
+                onCepChange = viewModel::onCepChange,
+                onStreetChange = viewModel::onStreetChange,
+                onNumberChange = viewModel::onNumberChange,
+                onCityChange = viewModel::onCityChange,
+                onUfChange = viewModel::onUfChange,
+                onUseGpsClick = requestGps,
+                subtitle = "Usado para calcular a distância dos animais.",
+                isRequired = true,
+                ufImeAction = ImeAction.Next
+            )
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -436,7 +353,7 @@ fun TelaEditarPerfilContent(
                 PetFinderPasswordField(
                     label = "Nova senha",
                     value = state.newPassword,
-                    onValueChange = onNewPasswordChange,
+                    onValueChange = viewModel::onNewPasswordChange,
                     placeholder = "Mínimo 8 caracteres",
                     leadingIcon = {
                         Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -449,7 +366,7 @@ fun TelaEditarPerfilContent(
                 PetFinderPasswordField(
                     label = "Confirmar nova senha",
                     value = state.confirmPassword,
-                    onValueChange = onConfirmPasswordChange,
+                    onValueChange = viewModel::onConfirmPasswordChange,
                     placeholder = "Repita a senha",
                     leadingIcon = {
                         Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
