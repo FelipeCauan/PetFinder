@@ -55,11 +55,17 @@ fun PetFinderTextField(
     trailingHint: String? = null,
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
+    suffix: @Composable (() -> Unit)? = null,
+    readOnly: Boolean = false,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     errorText: String? = null,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    textFieldModifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
         Row(
@@ -91,7 +97,11 @@ fun PetFinderTextField(
             },
             leadingIcon = leadingIcon,
             trailingIcon = trailingIcon,
-            singleLine = true,
+            suffix = suffix,
+            readOnly = readOnly,
+            singleLine = singleLine,
+            minLines = minLines,
+            maxLines = maxLines,
             isError = errorText != null,
             enabled = enabled,
             visualTransformation = visualTransformation,
@@ -108,7 +118,9 @@ fun PetFinderTextField(
                 disabledIndicatorColor = Color.Transparent,
                 errorIndicatorColor = Color.Transparent
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(textFieldModifier)
         )
         if (errorText != null) {
             Text(

@@ -116,7 +116,6 @@ fun TelaCadastroAnimal(
         onPickFromGallery = photoActions.pickFromGallery,
         onTakePhoto = photoActions.takePhoto,
         onRemovePhotoAt = viewModel::removePhotoAt,
-        onMovePhoto = viewModel::movePhoto,
         onStatusSelected = viewModel::onStatusSelected,
         onNameChange = viewModel::onNameChange,
         onSpeciesSelected = viewModel::onSpeciesSelected,
@@ -158,7 +157,6 @@ fun TelaCadastroAnimalContent(
     onPickFromGallery: () -> Unit,
     onTakePhoto: () -> Unit,
     onRemovePhotoAt: (Int) -> Unit,
-    onMovePhoto: (Int, Int) -> Unit,
     onStatusSelected: (AdoptionStatus) -> Unit,
     onNameChange: (String) -> Unit,
     onSpeciesSelected: (PetSpecies) -> Unit,
@@ -282,10 +280,8 @@ fun TelaCadastroAnimalContent(
         ) {
             PetPhotosSection(
                 photoPaths = state.photoPaths,
-                isEditMode = state.isEditMode,
                 onAddPhotoClick = { showPhotoSourceDialog = true },
                 onRemovePhotoAt = onRemovePhotoAt,
-                onMovePhoto = onMovePhoto,
                 errorText = state.errors[PetFormViewModel.KEY_PHOTO],
                 enabled = !state.isBusy
             )

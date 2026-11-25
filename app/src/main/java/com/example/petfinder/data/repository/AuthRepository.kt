@@ -6,7 +6,7 @@ import com.example.petfinder.data.local.entity.UserEntity
 import java.security.MessageDigest
 
 /**
- * Repositório responsável pelo cadastro, login e controle de sessão offline do usuário.
+ * Repositório responsável pelo cadastro, login e controole de sessão offline do usuári.
  */
 class AuthRepository(
     private val userDao: UserDao,

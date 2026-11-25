@@ -131,17 +131,6 @@ class PetFormViewModel(
         }
     }
 
-    fun movePhoto(fromIndex: Int, toIndex: Int) {
-        _uiState.update { state ->
-            if (fromIndex !in state.photoPaths.indices ||
-                toIndex !in state.photoPaths.indices ||
-                fromIndex == toIndex
-            ) return@update state
-            val updated = state.photoPaths.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
-            state.copy(photoPaths = updated)
-        }
-    }
-
     fun onStatusSelected(status: AdoptionStatus) = _uiState.update { it.copy(status = status) }
 
     fun onNameChange(value: String) = _uiState.update {
