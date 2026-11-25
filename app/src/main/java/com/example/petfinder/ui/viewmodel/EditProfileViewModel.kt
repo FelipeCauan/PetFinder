@@ -23,6 +23,7 @@ data class EditProfileUiState(
     val fullName: String = "",
     val email: String = "",
     val cpf: String = "",
+    val phone: String = "",
     val addressText: String = "",
     val initialAddressText: String = "",
     val gpsAddressText: String? = null,
@@ -38,6 +39,7 @@ data class EditProfileUiState(
     val fullNameError: String? = null,
     val emailError: String? = null,
     val cpfError: String? = null,
+    val phoneError: String? = null,
     val addressError: String? = null,
     val newPasswordError: String? = null,
     val confirmPasswordError: String? = null,
@@ -79,6 +81,7 @@ class EditProfileViewModel(
                 fullName = user.fullName,
                 email = user.email,
                 cpf = user.cpf,
+                phone = user.phone,
                 addressText = initialAddress,
                 initialAddressText = initialAddress,
                 cep = user.cep,
@@ -113,6 +116,11 @@ class EditProfileViewModel(
     fun onCpfChange(value: String) {
         val digits = value.filter { it.isDigit() }.take(11)
         _uiState.update { it.copy(cpf = digits, cpfError = null) }
+    }
+
+    fun onPhoneChange(value: String) {
+        val digits = value.filter { it.isDigit() }.take(11)
+        _uiState.update { it.copy(phone = digits, phoneError = null) }
     }
 
     fun onAddressChange(value: String) {
@@ -205,6 +213,7 @@ class EditProfileViewModel(
                     fullNameError = validation.fullNameError,
                     emailError = validation.emailError,
                     cpfError = validation.cpfError,
+                    phoneError = validation.phoneError,
                     addressError = validation.addressError,
                     newPasswordError = validation.newPasswordError,
                     confirmPasswordError = validation.confirmPasswordError
@@ -256,6 +265,7 @@ class EditProfileViewModel(
                 fullName = current.fullName,
                 email = current.email,
                 cpf = current.cpf,
+                phone = current.phone,
                 cep = resolvedAddress.cep,
                 street = resolvedAddress.street,
                 number = resolvedAddress.number,
@@ -351,6 +361,7 @@ class EditProfileViewModel(
         val fullNameError: String? = null,
         val emailError: String? = null,
         val cpfError: String? = null,
+        val phoneError: String? = null,
         val addressError: String? = null,
         val newPasswordError: String? = null,
         val confirmPasswordError: String? = null
@@ -360,6 +371,7 @@ class EditProfileViewModel(
                 fullNameError,
                 emailError,
                 cpfError,
+                phoneError,
                 addressError,
                 newPasswordError,
                 confirmPasswordError
@@ -393,6 +405,13 @@ class EditProfileViewModel(
                 null
             }
 
+            val phoneDigits = state.phone.filter { it.isDigit() }
+            val phoneError = if (phoneDigits.length !in 10..11) {
+                "Informe o telefone com DDD (10 ou 11 dígitos)."
+            } else {
+                null
+            }
+
             val addressError = if (state.addressText.trim().length < 3) {
                 "Informe o endereço."
             } else {
@@ -416,6 +435,7 @@ class EditProfileViewModel(
                 fullNameError = fullNameError,
                 emailError = emailError,
                 cpfError = cpfError,
+                phoneError = phoneError,
                 addressError = addressError,
                 newPasswordError = newPasswordError,
                 confirmPasswordError = confirmPasswordError

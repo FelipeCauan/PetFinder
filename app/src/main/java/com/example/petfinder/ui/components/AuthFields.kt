@@ -212,3 +212,50 @@ class CepVisualTransformation : VisualTransformation {
         return TransformedText(AnnotatedString(formatted), offsetMapping)
     }
 }
+
+/**
+ * Máscara visual brasileira (00) 0000-0000 ou (00) 00000-0000 para telefone armazenado apenas com dígitos.
+ */
+class PhoneVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val trimmed = text.text.take(11)
+        val splitIndex = if (trimmed.length > 10) 6 else 5
+        val formatted = buildString {
+            for (i in trimmed.indices) {
+                if (i == 0) append('(')
+                append(trimmed[i])
+                if (i == 1 && trimmed.length > 2) append(") ")
+                if (i == splitIndex && trimmed.length > splitIndex + 1) append('-')
+            }
+        }
+
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                var extra = 0
+                if (trimmed.isNotEmpty()) extra += 1
+                if (trimmed.length > 2 && offset > 2) extra += 2
+                if (trimmed.length > splitIndex + 1 && offset > splitIndex + 1) extra += 1
+                return (offset + extra).coerceAtMost(formatted.length)
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                var sub = 0
+                if (trimmed.isNotEmpty() && offset > 0) sub += 1
+                if (trimmed.length > 2 && offset > 3) sub += 2
+                val dashPos = splitIndex + 4
+                if (trimmed.length > splitIndex + 1 && offset > dashPos) sub += 1
+                return (offset - sub).coerceIn(0, trimmed.length)
+            }
+        }
+        return TransformedText(AnnotatedString(formatted), offsetMapping)
+    }
+}
+
+fun formatPhone(phoneDigits: String): String {
+    val digits = phoneDigits.filter { it.isDigit() }
+    return when (digits.length) {
+        11 -> "(${digits.substring(0, 2)}) ${digits.substring(2, 7)}-${digits.substring(7, 11)}"
+        10 -> "(${digits.substring(0, 2)}) ${digits.substring(2, 6)}-${digits.substring(6, 10)}"
+        else -> phoneDigits
+    }
+}

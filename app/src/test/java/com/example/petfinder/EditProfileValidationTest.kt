@@ -18,6 +18,7 @@ class EditProfileValidationTest {
                 fullName = "Mariana Costa",
                 email = "mariana.costa@email.com",
                 cpf = "12345678900",
+                phone = "85999998888",
                 addressText = "R. Vergueiro, 3185 — Vila Mariana, São Paulo, SP",
                 newPassword = "",
                 confirmPassword = ""
@@ -36,6 +37,7 @@ class EditProfileValidationTest {
                 fullName = "Ma",
                 email = "email-invalido",
                 cpf = "12345",
+                phone = "123",
                 addressText = "ab",
                 newPassword = "123",
                 confirmPassword = "456"
@@ -46,6 +48,7 @@ class EditProfileValidationTest {
         assertEquals("Informe o nome completo.", result.fullNameError)
         assertEquals("E-mail inválido.", result.emailError)
         assertEquals("O CPF deve conter 11 dígitos.", result.cpfError)
+        assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", result.phoneError)
         assertEquals("Informe o endereço.", result.addressError)
         assertEquals("A nova senha deve ter pelo menos 8 caracteres.", result.newPasswordError)
         assertEquals("As senhas não coincidem.", result.confirmPasswordError)
@@ -58,6 +61,7 @@ class EditProfileValidationTest {
                 fullName = "Mariana Costa",
                 email = "mariana.costa@email.com",
                 cpf = "12345678900",
+                phone = "11988887777",
                 addressText = "Rua das Flores, 100 — Campinas, SP",
                 newPassword = "novaSenha123",
                 confirmPassword = "novaSenha123"

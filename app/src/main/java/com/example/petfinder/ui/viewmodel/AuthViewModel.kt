@@ -24,6 +24,7 @@ data class RegisterUiState(
     val fullName: String = "",
     val email: String = "",
     val cpf: String = "",
+    val phone: String = "",
     val password: String = "",
     val cep: String = "",
     val street: String = "",
@@ -36,6 +37,7 @@ data class RegisterUiState(
     val fullNameError: String? = null,
     val emailError: String? = null,
     val cpfError: String? = null,
+    val phoneError: String? = null,
     val passwordError: String? = null,
     val cepError: String? = null,
     val streetError: String? = null,
@@ -133,6 +135,13 @@ class AuthViewModel(
         val digits = value.filter { it.isDigit() }.take(11)
         _uiState.update {
             it.copy(register = it.register.copy(cpf = digits, cpfError = null))
+        }
+    }
+
+    fun onRegisterPhoneChange(value: String) {
+        val digits = value.filter { it.isDigit() }.take(11)
+        _uiState.update {
+            it.copy(register = it.register.copy(phone = digits, phoneError = null))
         }
     }
 
@@ -243,6 +252,7 @@ class AuthViewModel(
                         fullNameError = validation.fullNameError,
                         emailError = validation.emailError,
                         cpfError = validation.cpfError,
+                        phoneError = validation.phoneError,
                         passwordError = validation.passwordError,
                         cepError = validation.cepError,
                         streetError = validation.streetError,
@@ -265,6 +275,7 @@ class AuthViewModel(
                 email = registerState.email,
                 password = registerState.password,
                 cpf = registerState.cpf,
+                phone = registerState.phone,
                 cep = registerState.cep,
                 street = registerState.street,
                 number = registerState.number,
@@ -303,6 +314,7 @@ class AuthViewModel(
                     fullNameError = null,
                     emailError = null,
                     cpfError = null,
+                    phoneError = null,
                     passwordError = null,
                     cepError = null,
                     streetError = null,
@@ -335,6 +347,7 @@ class AuthViewModel(
         val fullNameError: String? = null,
         val emailError: String? = null,
         val cpfError: String? = null,
+        val phoneError: String? = null,
         val passwordError: String? = null,
         val cepError: String? = null,
         val streetError: String? = null,
@@ -348,6 +361,7 @@ class AuthViewModel(
                 fullNameError,
                 emailError,
                 cpfError,
+                phoneError,
                 passwordError,
                 cepError,
                 streetError,
@@ -394,6 +408,12 @@ class AuthViewModel(
             } else {
                 null
             }
+            val phoneDigits = state.phone.filter { it.isDigit() }
+            val phoneError = if (phoneDigits.length !in 10..11) {
+                "Informe o telefone com DDD (10 ou 11 dígitos)."
+            } else {
+                null
+            }
             val passwordError = when {
                 state.password.isEmpty() -> "Crie uma senha."
                 state.password.length < 8 -> "Mínimo de 8 caracteres."
@@ -420,6 +440,7 @@ class AuthViewModel(
                 fullNameError = fullNameError,
                 emailError = validateEmail(state.email),
                 cpfError = cpfError,
+                phoneError = phoneError,
                 passwordError = passwordError,
                 cepError = cepError,
                 streetError = streetError,

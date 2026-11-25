@@ -61,6 +61,7 @@ import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
 import com.example.petfinder.ui.components.PetLocalImage
+import com.example.petfinder.ui.components.formatPhone
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.ProfileUiState
 import com.example.petfinder.ui.viewmodel.ProfileViewModel
@@ -269,7 +270,9 @@ fun TelaPerfilContent(
                 onPersonalDataClick = {
                     infoDialogTitle = "Dados pessoais e CPF"
                     infoDialogBody = if (user != null) {
-                        "Nome: ${user.fullName}\nE-mail: ${user.email}\nCPF: ${formatCpf(user.cpf)}"
+                        val phoneLabel = user.phone.takeIf { it.isNotBlank() }?.let { formatPhone(it) }
+                            ?: "Não informado"
+                        "Nome: ${user.fullName}\nE-mail: ${user.email}\nCPF: ${formatCpf(user.cpf)}\nTelefone: $phoneLabel"
                     } else {
                         "Nenhum usuário autenticado."
                     }

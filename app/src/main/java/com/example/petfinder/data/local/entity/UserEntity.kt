@@ -18,6 +18,7 @@ data class UserEntity(
     val email: String,
     val passwordHash: String,
     val cpf: String,
+    val phone: String = "",
     val cep: String,
     val street: String,
     val number: String,

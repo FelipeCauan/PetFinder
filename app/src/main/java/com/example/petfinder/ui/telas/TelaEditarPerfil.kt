@@ -78,6 +78,7 @@ import com.example.petfinder.ui.components.CpfVisualTransformation
 import com.example.petfinder.ui.components.PetFinderPrimaryButton
 import com.example.petfinder.ui.components.PetFinderTextField
 import com.example.petfinder.ui.components.PetLocalImage
+import com.example.petfinder.ui.components.PhoneVisualTransformation
 import com.example.petfinder.ui.components.PhotoSourceDialog
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.EditProfileUiState
@@ -184,6 +185,7 @@ fun TelaEditarPerfil(
         onFullNameChange = viewModel::onFullNameChange,
         onEmailChange = viewModel::onEmailChange,
         onCpfChange = viewModel::onCpfChange,
+        onPhoneChange = viewModel::onPhoneChange,
         onAddressChange = viewModel::onAddressChange,
         onUseCurrentLocationClick = {
             if (locationHelper.hasLocationPermission()) {
@@ -233,6 +235,7 @@ fun TelaEditarPerfilContent(
     onFullNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onCpfChange: (String) -> Unit,
+    onPhoneChange: (String) -> Unit,
     onAddressChange: (String) -> Unit,
     onUseCurrentLocationClick: () -> Unit,
     onNewPasswordChange: (String) -> Unit,
@@ -246,6 +249,7 @@ fun TelaEditarPerfilContent(
     var newPasswordVisible by rememberSaveable { mutableStateOf(false) }
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
     val cpfTransformation = remember { CpfVisualTransformation() }
+    val phoneTransformation = remember { PhoneVisualTransformation() }
 
     if (showPhotoSourceDialog) {
         PhotoSourceDialog(
@@ -460,6 +464,21 @@ fun TelaEditarPerfilContent(
                 enabled = !state.isBusy,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                )
+            )
+
+            PetFinderTextField(
+                label = "Telefone para contato",
+                isRequired = true,
+                value = state.phone,
+                onValueChange = onPhoneChange,
+                placeholder = "(00) 00000-0000",
+                visualTransformation = phoneTransformation,
+                errorText = state.phoneError,
+                enabled = !state.isBusy,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
                     imeAction = ImeAction.Next
                 )
             )
@@ -722,6 +741,7 @@ private fun TelaEditarPerfilPreview() {
             onFullNameChange = {},
             onEmailChange = {},
             onCpfChange = {},
+            onPhoneChange = {},
             onAddressChange = {},
             onUseCurrentLocationClick = {},
             onNewPasswordChange = {},

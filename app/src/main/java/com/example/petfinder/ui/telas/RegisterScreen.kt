@@ -67,6 +67,7 @@ import com.example.petfinder.ui.components.CepVisualTransformation
 import com.example.petfinder.ui.components.CpfVisualTransformation
 import com.example.petfinder.ui.components.PetFinderPrimaryButton
 import com.example.petfinder.ui.components.PetFinderTextField
+import com.example.petfinder.ui.components.PhoneVisualTransformation
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.AuthViewModel
 import com.example.petfinder.ui.viewmodel.RegisterUiState
@@ -117,6 +118,7 @@ fun RegisterScreen(
         onFullNameChange = viewModel::onRegisterFullNameChange,
         onEmailChange = viewModel::onRegisterEmailChange,
         onCpfChange = viewModel::onRegisterCpfChange,
+        onPhoneChange = viewModel::onRegisterPhoneChange,
         onPasswordChange = viewModel::onRegisterPasswordChange,
         onCepChange = viewModel::onRegisterCepChange,
         onStreetChange = viewModel::onRegisterStreetChange,
@@ -153,6 +155,7 @@ fun RegisterContent(
     onFullNameChange: (String) -> Unit,
     onEmailChange: (String) -> Unit,
     onCpfChange: (String) -> Unit,
+    onPhoneChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onCepChange: (String) -> Unit,
     onStreetChange: (String) -> Unit,
@@ -167,6 +170,7 @@ fun RegisterContent(
     var passwordVisible by remember { mutableStateOf(false) }
     var showTermsDialog by remember { mutableStateOf(false) }
     val cpfTransformation = remember { CpfVisualTransformation() }
+    val phoneTransformation = remember { PhoneVisualTransformation() }
     val cepTransformation = remember { CepVisualTransformation() }
 
     if (showTermsDialog) {
@@ -271,6 +275,22 @@ fun RegisterContent(
                 enabled = !state.isLoading,
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                )
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            PetFinderTextField(
+                label = "Telefone para contato",
+                value = state.phone,
+                onValueChange = onPhoneChange,
+                placeholder = "(00) 00000-0000",
+                visualTransformation = phoneTransformation,
+                errorText = state.phoneError,
+                enabled = !state.isLoading,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
                     imeAction = ImeAction.Next
                 )
             )
@@ -529,6 +549,7 @@ private fun RegisterScreenPreview() {
             onFullNameChange = {},
             onEmailChange = {},
             onCpfChange = {},
+            onPhoneChange = {},
             onPasswordChange = {},
             onCepChange = {},
             onStreetChange = {},

@@ -17,7 +17,7 @@ import com.example.petfinder.data.local.entity.UserEntity
  */
 @Database(
     entities = [UserEntity::class, PetEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,6 +37,12 @@ abstract class PetFinderDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE users ADD COLUMN phone TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): PetFinderDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -44,7 +50,7 @@ abstract class PetFinderDatabase : RoomDatabase() {
                     PetFinderDatabase::class.java,
                     "petfinder_database"
                 )
-                    .addMigrations(MIGRATION_5_6)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

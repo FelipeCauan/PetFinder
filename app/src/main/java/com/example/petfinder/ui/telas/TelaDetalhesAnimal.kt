@@ -59,6 +59,7 @@ import com.example.petfinder.data.model.PetSex
 import com.example.petfinder.data.model.PetSize
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.PetLocalImage
+import com.example.petfinder.ui.components.formatPhone
 import com.example.petfinder.ui.theme.PetFinderTheme
 import com.example.petfinder.ui.viewmodel.PetDetailUiState
 import com.example.petfinder.ui.viewmodel.PetDetailViewModel
@@ -116,6 +117,9 @@ fun TelaDetalheAnimalContent(
     val owner = state.owner
 
     if (showAdoptDialog && pet != null) {
+        val ownerPhoneDigits = owner?.phone?.filter { it.isDigit() }.orEmpty()
+        val ownerPhoneFormatted = ownerPhoneDigits.takeIf { it.isNotEmpty() }?.let { formatPhone(it) }
+
         AlertDialog(
             onDismissRequest = { showAdoptDialog = false },
             title = { Text("Contato para adoção") },
@@ -128,6 +132,7 @@ fun TelaDetalheAnimalContent(
                         fontWeight = FontWeight.Medium
                     )
                     Text("E-mail: ${owner?.email ?: "Não informado"}")
+                    Text("Telefone: ${ownerPhoneFormatted ?: "Não informado"}")
                     Text(
                         text = "Cidade: ${owner?.shortLocationLabel ?: pet.address}"
                     )

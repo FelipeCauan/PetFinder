@@ -45,6 +45,7 @@ class AuthValidationTest {
                 fullName = "Mariana Costa",
                 email = "mariana.costa@email.com",
                 cpf = "12345678901",
+                phone = "85999998888",
                 password = "password123",
                 cep = "01310100",
                 street = "Av. Paulista",
@@ -65,6 +66,7 @@ class AuthValidationTest {
                 fullName = "",
                 email = "mariana@email.com",
                 cpf = "12345",
+                phone = "123",
                 password = "123",
                 cep = "123",
                 street = "",
@@ -78,6 +80,7 @@ class AuthValidationTest {
         assertTrue(result.hasErrors)
         assertEquals("Informe o nome completo.", result.fullNameError)
         assertEquals("O CPF deve conter 11 dígitos.", result.cpfError)
+        assertEquals("Informe o telefone com DDD (10 ou 11 dígitos).", result.phoneError)
         assertEquals("Mínimo de 8 caracteres.", result.passwordError)
         assertEquals("CEP inválido.", result.cepError)
         assertEquals("Informe a rua.", result.streetError)
