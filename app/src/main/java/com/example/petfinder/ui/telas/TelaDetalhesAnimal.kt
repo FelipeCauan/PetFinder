@@ -72,6 +72,7 @@ fun TelaDetalheAnimal(
     petId: Long,
     viewModel: PetDetailViewModel,
     onNavigateBack: () -> Unit,
+    onEditPetClick: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -93,9 +94,7 @@ fun TelaDetalheAnimal(
         state = uiState,
         snackbarHostState = snackbarHostState,
         onNavigateBack = onNavigateBack,
-        onEditOwnerClick = {
-            viewModel.showFeedbackMessage("Edição de animal ainda não foi implementada.")
-        },
+        onEditOwnerClick = { onEditPetClick(petId) },
         modifier = modifier
     )
 }

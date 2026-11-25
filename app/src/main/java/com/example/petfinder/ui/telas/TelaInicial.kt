@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.petfinder.data.model.AdoptionStatus
 import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.ui.components.BottomNavTab
 import com.example.petfinder.ui.components.NavegacaoInferior
@@ -261,21 +262,6 @@ fun Cabecalho(
                 )
             }
         }
-
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .background(
-                    Color(0xFFF0EAF8),
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "🔔",
-                fontSize = 20.sp
-            )
-        }
     }
 }
 
@@ -404,6 +390,7 @@ fun CardAnimal(
     distancia: String,
     emoji: String,
     photoPath: String? = null,
+    status: AdoptionStatus = AdoptionStatus.DISPONIVEL,
     onClick: () -> Unit
 ) {
     Card(
@@ -416,15 +403,38 @@ fun CardAnimal(
         )
     ) {
         Column {
-            PetLocalImage(
-                photoPath = photoPath,
-                contentDescription = "Foto de $nome",
-                fallbackEmoji = emoji,
-                fallbackEmojiSize = 55.sp,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(130.dp)
-            )
+            ) {
+                PetLocalImage(
+                    photoPath = photoPath,
+                    contentDescription = "Foto de $nome",
+                    fallbackEmoji = emoji,
+                    fallbackEmojiSize = 55.sp,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (status != AdoptionStatus.DISPONIVEL) {
+                    val (badgeBg, badgeFg) = when (status) {
+                        AdoptionStatus.EM_PROCESSO -> Color(0xFFFFF3CD) to Color(0xFF7C5800)
+                        AdoptionStatus.ADOTADO -> Color(0xFFE9DDF8) to Color(0xFF43266F)
+                        AdoptionStatus.DISPONIVEL -> Color.Transparent to Color.Transparent
+                    }
+                    Text(
+                        text = "● ${status.label}",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = badgeFg,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .background(badgeBg, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
 
             Column(
                 modifier = Modifier.padding(12.dp)
@@ -529,6 +539,7 @@ fun AnimaisProximos(
                         distancia = distanceLabel,
                         emoji = speciesEmoji(pet.species),
                         photoPath = pet.photoPath,
+                        status = pet.status,
                         onClick = { onPetClick(pet.id) }
                     )
                 }

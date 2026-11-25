@@ -1,5 +1,6 @@
 package com.example.petfinder.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -11,6 +12,7 @@ import com.example.petfinder.data.model.PetSpecies
 import com.example.petfinder.data.repository.AuthRepository
 import com.example.petfinder.data.repository.PetRepository
 import com.example.petfinder.util.LocationHelper
+import com.example.petfinder.util.PhotoStorageHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +27,13 @@ enum class AgeUnit(val label: String) {
 
 data class PetFormUiState(
     val editingPetId: Long? = null,
+    val originalOwnerId: Long? = null,
+    val originalCreatedAt: Long? = null,
+    val originalPhotoPaths: List<String> = emptyList(),
+    val initialAddress: String? = null,
+    val gpsAddress: String? = null,
     val photoPaths: List<String> = emptyList(),
+    val status: AdoptionStatus = AdoptionStatus.DISPONIVEL,
     val name: String = "",
     val species: PetSpecies = PetSpecies.CACHORRO,
     val sex: PetSex = PetSex.MACHO,
@@ -42,10 +50,18 @@ data class PetFormUiState(
     val photoError: String? = null,
     val nameError: String? = null,
     val addressError: String? = null,
+    val isLoadingPet: Boolean = false,
     val isLoading: Boolean = false,
+    val isDeleting: Boolean = false,
     val isFetchingLocation: Boolean = false,
     val feedbackMessage: String? = null
 ) {
+    val isEditMode: Boolean
+        get() = editingPetId != null
+
+    val isBusy: Boolean
+        get() = isLoading || isDeleting
+
     companion object {
         const val DEFAULT_BREED = "SRD (sem raça definida)"
         const val OTHER_BREED = "Outra (informar)"
@@ -54,7 +70,8 @@ data class PetFormUiState(
 }
 
 /**
- * ViewModel da TelaCadastroAnimal: gerencia validações, fotos, GPS e persistência no Room.
+ * ViewModel compartilhado por TelaCadastroAnimal e TelaEditarAnimal:
+ * gerencia validações, fotos (incluindo reordenação), status de adoção, GPS e persistência no Room.
  */
 class PetFormViewModel(
     private val authRepository: AuthRepository,
@@ -63,6 +80,49 @@ class PetFormViewModel(
 
     private val _uiState = MutableStateFlow(PetFormUiState())
     val uiState: StateFlow<PetFormUiState> = _uiState.asStateFlow()
+
+    fun loadPetForEdit(petId: Long, onNotFound: () -> Unit = {}) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingPet = true, feedbackMessage = null) }
+            val pet = petRepository.getPetById(petId)
+            if (pet == null) {
+                _uiState.value = PetFormUiState()
+                onNotFound()
+                return@launch
+            }
+
+            val photos = (listOf(pet.photoPath) + pet.additionalPhotoPaths)
+                .filter { it.isNotBlank() }
+                .take(PetFormUiState.MAX_PHOTOS)
+
+            val (breedOption, customBreed) = resolveBreedFields(pet.breed)
+            val (ageValue, ageUnit) = parseEstimatedAge(pet.estimatedAge)
+
+            _uiState.value = PetFormUiState(
+                editingPetId = pet.id,
+                originalOwnerId = pet.ownerId,
+                originalCreatedAt = pet.createdAt,
+                originalPhotoPaths = photos,
+                initialAddress = pet.address,
+                photoPaths = photos,
+                status = pet.status,
+                name = pet.name,
+                species = pet.species,
+                sex = pet.sex,
+                size = pet.size,
+                selectedBreedOption = breedOption,
+                customBreed = customBreed,
+                estimatedAgeValue = ageValue,
+                estimatedAgeUnit = ageUnit,
+                animalRg = pet.animalRg.orEmpty(),
+                description = pet.description.orEmpty(),
+                address = pet.address,
+                latitude = pet.latitude,
+                longitude = pet.longitude,
+                isLoadingPet = false
+            )
+        }
+    }
 
     fun addPhotoPath(path: String) {
         _uiState.update { state ->
@@ -83,6 +143,25 @@ class PetFormViewModel(
             val updated = state.photoPaths.toMutableList().apply { removeAt(index) }
             state.copy(photoPaths = updated)
         }
+    }
+
+    fun movePhoto(fromIndex: Int, toIndex: Int) {
+        _uiState.update { state ->
+            if (fromIndex !in state.photoPaths.indices ||
+                toIndex !in state.photoPaths.indices ||
+                fromIndex == toIndex
+            ) {
+                return@update state
+            }
+            val updated = state.photoPaths.toMutableList()
+            val moved = updated.removeAt(fromIndex)
+            updated.add(toIndex, moved)
+            state.copy(photoPaths = updated)
+        }
+    }
+
+    fun onStatusSelected(status: AdoptionStatus) {
+        _uiState.update { it.copy(status = status) }
     }
 
     fun onNameChange(value: String) {
@@ -172,6 +251,7 @@ class PetFormViewModel(
                     _uiState.update {
                         it.copy(
                             address = formattedAddress,
+                            gpsAddress = formattedAddress,
                             latitude = captured.latitude,
                             longitude = captured.longitude,
                             addressError = null,
@@ -192,6 +272,8 @@ class PetFormViewModel(
     }
 
     fun submit(
+        context: Context? = null,
+        locationHelper: LocationHelper? = null,
         onSuccess: () -> Unit,
         onSessionExpired: () -> Unit = {}
     ) {
@@ -237,9 +319,27 @@ class PetFormViewModel(
                 return@launch
             }
 
+            if (current.isEditMode && current.originalOwnerId != null && current.originalOwnerId != loggedUser.id) {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        feedbackMessage = "Você não tem permissão para editar este cadastro."
+                    )
+                }
+                return@launch
+            }
+
+            val trimmedAddress = current.address.trim()
+            val matchesGps = current.gpsAddress != null && trimmedAddress == current.gpsAddress.trim()
+            val matchesInitial = current.initialAddress != null && trimmedAddress == current.initialAddress.trim()
+            val (resolvedLat, resolvedLon) = when {
+                matchesGps || matchesInitial -> current.latitude to current.longitude
+                else -> locationHelper?.forwardGeocode(trimmedAddress) ?: (null to null)
+            }
+
             val pet = PetEntity(
                 id = current.editingPetId ?: 0L,
-                ownerId = loggedUser.id,
+                ownerId = current.originalOwnerId ?: loggedUser.id,
                 name = current.name.trim(),
                 species = current.species,
                 sex = current.sex,
@@ -249,16 +349,27 @@ class PetFormViewModel(
                 breed = resolvedBreed,
                 estimatedAge = resolvedAge,
                 description = current.description.trim().ifBlank { null },
-                address = current.address.trim(),
-                latitude = current.latitude,
-                longitude = current.longitude,
+                address = trimmedAddress,
+                latitude = resolvedLat,
+                longitude = resolvedLon,
                 size = current.size,
-                status = AdoptionStatus.DISPONIVEL
+                status = if (current.isEditMode) current.status else AdoptionStatus.DISPONIVEL,
+                createdAt = current.originalCreatedAt ?: System.currentTimeMillis()
             )
 
             runCatching {
-                petRepository.insertPet(pet)
+                if (current.isEditMode) {
+                    petRepository.updatePet(pet)
+                } else {
+                    petRepository.insertPet(pet)
+                }
             }.onSuccess {
+                if (context != null && current.isEditMode) {
+                    val removedPhotos = current.originalPhotoPaths.filter { it !in current.photoPaths }
+                    if (removedPhotos.isNotEmpty()) {
+                        PhotoStorageHelper.deleteLocalPhotos(context, removedPhotos)
+                    }
+                }
                 _uiState.value = PetFormUiState()
                 onSuccess()
             }.onFailure { error ->
@@ -266,6 +377,51 @@ class PetFormViewModel(
                     it.copy(
                         isLoading = false,
                         feedbackMessage = error.message ?: "Erro ao salvar animal no banco local."
+                    )
+                }
+            }
+        }
+    }
+
+    fun deletePet(
+        context: Context,
+        onDeleted: () -> Unit,
+        onSessionExpired: () -> Unit = {}
+    ) {
+        val current = _uiState.value
+        val petId = current.editingPetId ?: return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeleting = true, feedbackMessage = null) }
+            val loggedUser = authRepository.getLoggedInUser()
+            if (loggedUser == null) {
+                _uiState.update { it.copy(isDeleting = false) }
+                onSessionExpired()
+                return@launch
+            }
+
+            if (current.originalOwnerId != null && current.originalOwnerId != loggedUser.id) {
+                _uiState.update {
+                    it.copy(
+                        isDeleting = false,
+                        feedbackMessage = "Você não tem permissão para excluir este cadastro."
+                    )
+                }
+                return@launch
+            }
+
+            runCatching {
+                petRepository.deletePetById(petId)
+            }.onSuccess {
+                val filesToDelete = (current.originalPhotoPaths + current.photoPaths).distinct()
+                PhotoStorageHelper.deleteLocalPhotos(context, filesToDelete)
+                _uiState.value = PetFormUiState()
+                onDeleted()
+            }.onFailure { error ->
+                _uiState.update {
+                    it.copy(
+                        isDeleting = false,
+                        feedbackMessage = error.message ?: "Não foi possível excluir o cadastro."
                     )
                 }
             }
@@ -294,6 +450,8 @@ class PetFormViewModel(
     }
 
     companion object {
+        private val AGE_REGEX = Regex("^(\\d{1,2})\\s*(ano|anos|mês|mes|meses)?$", RegexOption.IGNORE_CASE)
+
         val BREED_OPTIONS = listOf(
             PetFormUiState.DEFAULT_BREED,
             "Vira-lata",
@@ -307,6 +465,25 @@ class PetFormViewModel(
             "Maine Coon",
             PetFormUiState.OTHER_BREED
         )
+
+        internal fun resolveBreedFields(breed: String?): Pair<String, String> {
+            val trimmed = breed?.trim().orEmpty()
+            return when {
+                trimmed.isEmpty() -> PetFormUiState.DEFAULT_BREED to ""
+                trimmed in BREED_OPTIONS && trimmed != PetFormUiState.OTHER_BREED -> trimmed to ""
+                else -> PetFormUiState.OTHER_BREED to trimmed
+            }
+        }
+
+        internal fun parseEstimatedAge(estimatedAge: String?): Pair<String, AgeUnit> {
+            val trimmed = estimatedAge?.trim().orEmpty()
+            if (trimmed.isEmpty()) return "" to AgeUnit.ANOS
+            val match = AGE_REGEX.matchEntire(trimmed) ?: return "" to AgeUnit.ANOS
+            val digits = match.groupValues[1]
+            val unitRaw = match.groupValues[2].lowercase()
+            val unit = if (unitRaw.startsWith("m")) AgeUnit.MESES else AgeUnit.ANOS
+            return digits to unit
+        }
 
         internal fun validate(state: PetFormUiState): ValidationResult {
             val photoError = if (state.photoPaths.isEmpty()) {

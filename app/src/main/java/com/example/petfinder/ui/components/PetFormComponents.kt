@@ -3,6 +3,9 @@ package com.example.petfinder.ui.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,22 +20,40 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,16 +63,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.example.petfinder.ui.viewmodel.PetFormUiState
+import com.example.petfinder.ui.viewmodel.PetFormViewModel
 import com.example.petfinder.util.PhotoStorageHelper
 
 /**
@@ -421,4 +450,531 @@ fun PhotoSourceDialog(
             }
         }
     )
+}
+
+/**
+ * Seção de fotos para edição de animal: miniaturas reordenáveis por arraste,
+ * badge "Capa" na primeira foto, remoção individual e botão tracejado "Adicionar foto".
+ */
+@Composable
+fun PetEditPhotoSection(
+    photoPaths: List<String>,
+    onAddPhotoClick: () -> Unit,
+    onRemovePhotoAt: (Int) -> Unit,
+    onMovePhoto: (Int, Int) -> Unit,
+    errorText: String?,
+    enabled: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val thumbSize = 104.dp
+    val spacing = 10.dp
+    val stepPx = with(LocalDensity.current) { (thumbSize + spacing).toPx() }
+
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
+    val latestCount by rememberUpdatedState(photoPaths.size)
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PetFormFieldLabel(label = "Fotos", isRequired = true)
+            Text(
+                text = "Arraste para reordenar",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (photoPaths.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(spacing)
+            ) {
+                photoPaths.forEachIndexed { index, path ->
+                    val isDragging = draggingIndex == index
+                    val currentIndex by rememberUpdatedState(index)
+
+                    Box(
+                        modifier = Modifier
+                            .size(thumbSize)
+                            .zIndex(if (isDragging) 1f else 0f)
+                            .graphicsLayer {
+                                translationX = if (isDragging) dragOffsetX else 0f
+                                val scale = if (isDragging) 1.04f else 1f
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .pointerInput(enabled, path) {
+                                if (!enabled) return@pointerInput
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        draggingIndex = currentIndex
+                                        dragOffsetX = 0f
+                                    },
+                                    onDragEnd = {
+                                        draggingIndex = null
+                                        dragOffsetX = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggingIndex = null
+                                        dragOffsetX = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        val active = draggingIndex ?: return@detectDragGesturesAfterLongPress
+                                        dragOffsetX += dragAmount.x
+                                        if (dragOffsetX >= stepPx * 0.55f && active < latestCount - 1) {
+                                            onMovePhoto(active, active + 1)
+                                            draggingIndex = active + 1
+                                            dragOffsetX -= stepPx
+                                        } else if (dragOffsetX <= -stepPx * 0.55f && active > 0) {
+                                            onMovePhoto(active, active - 1)
+                                            draggingIndex = active - 1
+                                            dragOffsetX += stepPx
+                                        }
+                                    }
+                                )
+                            }
+                    ) {
+                        PetLocalImage(
+                            photoPath = path,
+                            contentDescription = "Foto ${index + 1} do animal",
+                            fallbackEmoji = "🐾",
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        if (enabled) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(6.dp)
+                                    .size(22.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                                    .pointerInput(enabled, path) {
+                                        detectDragGestures(
+                                            onDragStart = {
+                                                draggingIndex = currentIndex
+                                                dragOffsetX = 0f
+                                            },
+                                            onDragEnd = {
+                                                draggingIndex = null
+                                                dragOffsetX = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggingIndex = null
+                                                dragOffsetX = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                val active = draggingIndex ?: return@detectDragGestures
+                                                dragOffsetX += dragAmount.x
+                                                if (dragOffsetX >= stepPx * 0.55f && active < latestCount - 1) {
+                                                    onMovePhoto(active, active + 1)
+                                                    draggingIndex = active + 1
+                                                    dragOffsetX -= stepPx
+                                                } else if (dragOffsetX <= -stepPx * 0.55f && active > 0) {
+                                                    onMovePhoto(active, active - 1)
+                                                    draggingIndex = active - 1
+                                                    dragOffsetX += stepPx
+                                                }
+                                            }
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DragIndicator,
+                                    contentDescription = "Arrastar para reordenar",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+
+                        if (index == 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(6.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f))
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Text(
+                                    text = "Capa",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        if (enabled) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(6.dp)
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
+                                    .clickable { onRemovePhotoAt(index) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Remover foto",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (photoPaths.size < PetFormUiState.MAX_PHOTOS) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                    .drawBehind {
+                        val stroke = Stroke(
+                            width = 1.5.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(
+                                floatArrayOf(12f, 10f),
+                                0f
+                            )
+                        )
+                        drawRoundRect(
+                            color = borderColor,
+                            cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx()),
+                            style = stroke
+                        )
+                    }
+                    .clickable(enabled = enabled, onClick = onAddPhotoClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PhotoCamera,
+                        contentDescription = null,
+                        tint = primaryColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Adicionar foto",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        if (errorText != null) {
+            Text(
+                text = errorText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 6.dp, top = 6.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Seção compartilhada de informações opcionais do animal (raça, idade presumida, RG e descrição).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PetAdditionalInfoSection(
+    state: PetFormUiState,
+    enabled: Boolean,
+    onBreedOptionSelected: (String) -> Unit,
+    onCustomBreedChange: (String) -> Unit,
+    onEstimatedAgeChange: (String) -> Unit,
+    onToggleAgeUnit: () -> Unit,
+    onAnimalRgChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var breedMenuExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Informações adicionais",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "Opcional, mas ajuda na adoção.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Column {
+            PetFormFieldLabel(label = "Raça", isRequired = false)
+            Spacer(modifier = Modifier.height(6.dp))
+            ExposedDropdownMenuBox(
+                expanded = breedMenuExpanded,
+                onExpandedChange = {
+                    if (enabled) breedMenuExpanded = !breedMenuExpanded
+                }
+            ) {
+                TextField(
+                    value = state.selectedBreedOption,
+                    onValueChange = {},
+                    readOnly = true,
+                    singleLine = true,
+                    enabled = enabled,
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.KeyboardArrowDown,
+                            contentDescription = "Selecionar raça",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                )
+
+                ExposedDropdownMenu(
+                    expanded = breedMenuExpanded,
+                    onDismissRequest = { breedMenuExpanded = false }
+                ) {
+                    PetFormViewModel.BREED_OPTIONS.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                onBreedOptionSelected(option)
+                                breedMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        if (state.selectedBreedOption == PetFormUiState.OTHER_BREED) {
+            PetFinderTextField(
+                label = "Qual raça?",
+                value = state.customBreed,
+                onValueChange = onCustomBreedChange,
+                placeholder = "Digite a raça",
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Next
+                )
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                PetFormFieldLabel(label = "Idade presumida", isRequired = false)
+                Spacer(modifier = Modifier.height(6.dp))
+                TextField(
+                    value = state.estimatedAgeValue,
+                    onValueChange = onEstimatedAgeChange,
+                    placeholder = {
+                        Text(
+                            text = "3",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        )
+                    },
+                    suffix = {
+                        Text(
+                            text = state.estimatedAgeUnit.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable(enabled = enabled, onClick = onToggleAgeUnit)
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    },
+                    singleLine = true,
+                    enabled = enabled,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            PetFinderTextField(
+                label = "RG Animal",
+                value = state.animalRg,
+                onValueChange = onAnimalRgChange,
+                placeholder = "Opcional",
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Column {
+            PetFormFieldLabel(label = "Sobre o animal", isRequired = false)
+            Spacer(modifier = Modifier.height(6.dp))
+            TextField(
+                value = state.description,
+                onValueChange = onDescriptionChange,
+                placeholder = {
+                    Text(
+                        text = "Conte um pouco sobre a personalidade, cuidados ou história (opcional)",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                },
+                minLines = 3,
+                maxLines = 5,
+                enabled = enabled,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Next
+                ),
+                shape = RoundedCornerShape(16.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+/**
+ * Seção compartilhada de localização do animal com botão de captura por GPS.
+ */
+@Composable
+fun PetLocationSection(
+    address: String,
+    addressError: String?,
+    isFetchingLocation: Boolean,
+    enabled: Boolean,
+    onAddressChange: (String) -> Unit,
+    onUseCurrentLocationClick: () -> Unit,
+    showPrivacyHint: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        PetFinderTextField(
+            label = "Localização",
+            isRequired = true,
+            value = address,
+            onValueChange = onAddressChange,
+            placeholder = "R. Domingos de Morais, 1200",
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Outlined.LocationOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            errorText = addressError,
+            enabled = enabled,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences,
+                imeAction = ImeAction.Done
+            )
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(
+                    enabled = enabled && !isFetchingLocation,
+                    onClick = onUseCurrentLocationClick
+                )
+                .padding(vertical = 4.dp)
+        ) {
+            if (isFetchingLocation) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.MyLocation,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Usar minha localização atual",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (showPrivacyHint) {
+            Text(
+                text = "O endereço exato não é exibido. Os interessados veem só o bairro e a distância.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }

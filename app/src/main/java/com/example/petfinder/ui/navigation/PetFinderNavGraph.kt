@@ -12,6 +12,7 @@ import com.example.petfinder.ui.telas.LoginScreen
 import com.example.petfinder.ui.telas.RegisterScreen
 import com.example.petfinder.ui.telas.TelaCadastroAnimal
 import com.example.petfinder.ui.telas.TelaDetalheAnimal
+import com.example.petfinder.ui.telas.TelaEditarAnimal
 import com.example.petfinder.ui.telas.TelaEditarPerfil
 import com.example.petfinder.ui.telas.TelaInicial
 import com.example.petfinder.ui.telas.TelaPerfil
@@ -29,9 +30,11 @@ object PetFinderRoutes {
     const val PROFILE = "profile"
     const val EDIT_PROFILE = "edit_profile"
     const val REGISTER_PET = "register_pet"
+    const val EDIT_PET = "edit_pet/{petId}"
     const val PET_DETAIL = "pet_detail/{petId}"
 
     fun petDetailRoute(petId: Long): String = "pet_detail/$petId"
+    fun editPetRoute(petId: Long): String = "edit_pet/$petId"
 }
 
 /**
@@ -197,6 +200,46 @@ fun PetFinderNavGraph(
                 viewModel = petDetailViewModel,
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onEditPetClick = { id ->
+                    navController.navigate(PetFinderRoutes.editPetRoute(id)) {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = PetFinderRoutes.EDIT_PET,
+            arguments = listOf(navArgument("petId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            val petId = backStackEntry.arguments?.getLong("petId") ?: -1L
+            TelaEditarAnimal(
+                petId = petId,
+                viewModel = petFormViewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onSaveSuccess = {
+                    petDetailViewModel.showFeedbackMessage("Alterações salvas!")
+                    navController.popBackStack()
+                },
+                onDeleteSuccess = {
+                    navController.popBackStack(
+                        route = PetFinderRoutes.PET_DETAIL,
+                        inclusive = true
+                    )
+                    when (navController.currentBackStackEntry?.destination?.route) {
+                        PetFinderRoutes.PROFILE -> profileViewModel.showFeedbackMessage("Cadastro excluído com sucesso.")
+                        else -> homeViewModel.showFeedbackMessage("Cadastro excluído com sucesso.")
+                    }
+                },
+                onSessionExpired = {
+                    homeViewModel.resetState()
+                    navController.navigate(PetFinderRoutes.LOGIN) {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
